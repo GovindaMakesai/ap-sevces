@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { mediaUrl } from '../../config/api';
 import { Avatar, ErrorBanner } from '../../components/ui';
-import AvatarFrame from '../../components/AvatarFrame';
 import CoupleRing from '../../components/CoupleRing';
 import { CreamMenuRow } from '../../components/creamChrome';
 import { compactM } from '../../lib/format.js';
@@ -24,6 +23,7 @@ import {
   isPlatformAdmin,
   isSuperAdmin,
   isWorker,
+  workerProfileFromDashboard,
   ROLE_BADGE,
 } from '../../lib/roles';
 
@@ -40,30 +40,35 @@ export default function ProfileScreen({ navigation }) {
   const [cp, setCp] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [hasWorkerProfile, setHasWorkerProfile] = useState(isWorker(user));
   const admin = isPlatformAdmin(user);
-  const seller = isCoinSeller(user);
-  const host = isHost(user) || admin || isAgency(user);
-  const agency = isAgency(user) || admin;
-  const bd = isBd(user) || admin;
-  const worker = isWorker(user);
+  /* Role menus: only show centers the account can use. Platform admin sees all. */
+  const seller = admin || isCoinSeller(user);
+  const host = admin || isHost(user) || isAgency(user);
+  const agency = admin || isAgency(user);
+  const bd = admin || isBd(user);
+  const worker = isWorker(user) || hasWorkerProfile;
   const publicId = formatUserDisplayId(user);
   const roles = hierarchyKeys(user);
+  if (worker && !roles.includes('pro')) roles.push('pro');
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const [s, w, panel, sv, cpHome] = await Promise.all([
+      const [s, w, panel, sv, cpHome, workerDash] = await Promise.all([
         api.get(`/social/stats/${user.id}`, null, { auth: false }).catch(() => ({})),
         api.get('/wallet/balance').catch(() => ({})),
         api.get(`/social/creators/${user.id}/profile-panel`, null, { auth: false }).catch(() => ({})),
         api.get('/svip/home').catch(() => ({})),
         api.get('/cp/home').catch(() => ({})),
+        api.get('/workers/dashboard').catch(() => ({})),
       ]);
       const sd = api.unwrap(s);
       const wd = api.unwrap(w);
       const pd = api.unwrap(panel);
       const svd = api.unwrap(sv);
       const cpd = api.unwrap(cpHome);
+      setHasWorkerProfile(Boolean(workerProfileFromDashboard(api.unwrap(workerDash)) || isWorker(user)));
       setStats({
         following: Number(sd.following || sd.followingCount || 0),
         followers: Number(sd.followers || sd.followerCount || 0),
@@ -79,7 +84,7 @@ export default function ProfileScreen({ navigation }) {
     } catch (e) {
       setError(e.message);
     }
-  }, [api, user?.id, user?.level]);
+  }, [api, user, user?.id, user?.level]);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,69 +110,74 @@ export default function ProfileScreen({ navigation }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}
     >
       <ErrorBanner message={error} onRetry={load} />
-      <View style={[styles.meHead, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.meTop}>
-          <Text style={styles.onlineLite}>● Online</Text>
-          <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.editIco}>
-            <Ionicons name="pencil" size={16} color="#8B6D3B" />
+
+      <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.avWrap}>
+          <Pressable onPress={() => navigation.navigate('CreatorProfile', { userId: user?.id, name: displayName })}>
+            {pic ? (
+              <Image source={{ uri: pic }} style={styles.av} />
+            ) : (
+              <Avatar name={displayName} size={96} style={styles.avFallback} />
+            )}
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.camBtn} hitSlop={6}>
+            <Ionicons name="camera" size={14} color="#fff" />
           </Pressable>
         </View>
-        <View style={styles.meRow}>
-          <Pressable onPress={() => navigation.navigate('CreatorProfile', { userId: user?.id, name: displayName })}>
-            <AvatarFrame uri={pic} name={displayName} size={72} score={Number(stats.coins || stats.level * 8000 || 12000)} rank={svip.level >= 10 ? 1 : svip.level >= 4 ? 2 : 3} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.meName}>{displayName}</Text>
-            <Pressable onPress={copyId} style={styles.idLine}>
-              <Text style={styles.idLite}>ID:{publicId || '—'}</Text>
-              <Ionicons name="copy-outline" size={14} color="#8B6D3B" />
-            </Pressable>
-            <View style={styles.pills}>
-              {roles.map((k) => {
-                const b = ROLE_BADGE[k];
-                if (!b) return null;
-                return (
-                  <Text key={k} style={[styles.rolePill, { backgroundColor: b.bg[1], color: b.color }]}>
-                    {b.label}
-                  </Text>
-                );
-              })}
-              <Text style={styles.pillB}>Lv.{stats.level}</Text>
-              {svip.level ? <Text style={styles.pillC}>SVIP {svip.level}</Text> : null}
-              <Text style={styles.flag}>🇮🇳</Text>
-            </View>
-          </View>
+
+        <Text style={styles.meName}>{displayName}</Text>
+
+        <View style={styles.pills}>
+          {roles.map((k) => {
+            const b = ROLE_BADGE[k];
+            if (!b) return null;
+            const isAdmin = k === 'admin';
+            const isSeller = k === 'seller';
+            return (
+              <Text
+                key={k}
+                style={[
+                  styles.rolePill,
+                  {
+                    backgroundColor: isAdmin ? '#FF8C00' : isSeller ? '#F5D76E' : b.bg[1],
+                    color: isAdmin ? '#fff' : b.color,
+                  },
+                ]}
+              >
+                {b.label}
+              </Text>
+            );
+          })}
+          <Text style={styles.pillLv}>Lv.{stats.level}</Text>
+          {svip.level ? <Text style={styles.pillSvip}>SVIP {svip.level}</Text> : null}
         </View>
       </View>
 
       {!bond.hasCp ? (
-      <Pressable onPress={() => navigation.navigate('Cp')} style={styles.cpInvite}>
-        <Text style={styles.cpInviteT}>Find your CP and show your ring on your profile</Text>
-        <LinearGradient colors={['#F472B6', '#DB2777']} style={styles.cpInviteBtn}>
-          <Ionicons name="heart" size={14} color="#fff" />
-          <Text style={styles.cpInviteBtnT}>Open CP House</Text>
-        </LinearGradient>
-      </Pressable>
+        <Pressable onPress={() => navigation.navigate('Cp')} style={styles.cpInvite}>
+          <Text style={styles.cpInviteT}>Find your CP and show your ring on your profile</Text>
+          <LinearGradient colors={['#F472B6', '#DB2777']} style={styles.cpInviteBtn}>
+            <Ionicons name="heart" size={14} color="#fff" />
+            <Text style={styles.cpInviteBtnT}>Open CP House</Text>
+          </LinearGradient>
+        </Pressable>
       ) : null}
+
       <Pressable onPress={() => navigation.navigate('Cp')} style={styles.cpCard}>
-        <LinearGradient colors={['#4A1A6B', '#7B2B8E', '#C2186A']} style={styles.cpGrad}>
+        <LinearGradient colors={['#3B0764', '#5B21B6', '#6D28D9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cpGrad}>
           <View style={styles.cpTop}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Ionicons name="heart" size={14} color="#F9A8D4" />
-              <Text style={styles.cpLabel}>{bond.hasCp ? 'My CP' : 'CP'}</Text>
+              <Text style={styles.cpLabel}>CP</Text>
+              <Ionicons name="heart" size={12} color="#F9A8D4" />
             </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Pressable onPress={() => navigation.navigate('Cp')}><Text style={styles.cpLink}>CP House ›</Text></Pressable>
-              <Pressable onPress={() => navigation.navigate('CpRankings')} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                <Ionicons name="trophy" size={12} color="#F5D76E" />
-                <Text style={styles.cpLink}>Rankings</Text>
-              </Pressable>
-            </View>
+            <Pressable onPress={() => navigation.navigate('Cp')} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <Text style={styles.cpLink}>Settings</Text>
+              <Ionicons name="chevron-down" size={12} color="#E9D5FF" />
+            </Pressable>
           </View>
           <View style={styles.cpPair}>
             <View style={styles.cpSlot}>
               {pic ? <Image source={{ uri: pic }} style={styles.cpAv} /> : <Avatar name={displayName} size={58} />}
-              <Text style={styles.cpName} numberOfLines={1}>{displayName}</Text>
             </View>
             <View style={styles.cpMid}>
               <CoupleRing ringId={bond.ringId} ring={bond.ring} size={48} />
@@ -180,9 +190,8 @@ export default function ProfileScreen({ navigation }) {
               {bond.hasCp ? (
                 <Avatar uri={mediaUrl(bond.partnerPic)} name={partnerName} size={58} />
               ) : (
-                <View style={styles.cpEmpty}><Ionicons name="person" size={28} color="#F9A8D4" /></View>
+                <View style={styles.cpEmpty}><Ionicons name="person" size={28} color="#E9D5FF" /></View>
               )}
-              <Text style={styles.cpName} numberOfLines={1}>{bond.hasCp ? partnerName : 'Add'}</Text>
             </Pressable>
           </View>
           <Text style={styles.together}>
@@ -197,28 +206,14 @@ export default function ProfileScreen({ navigation }) {
         <Ionicons name="copy-outline" size={16} color="#8B6D3B" />
       </Pressable>
 
-      <View style={styles.statRow}>
-        <Pressable onPress={() => navigation.navigate('FollowList', { kind: 'following', userId: user?.id })} style={styles.statBox}>
-          <Text style={styles.statN}>{stats.following}</Text>
-          <Text style={styles.statL}>Following</Text>
+      <View style={styles.followRow}>
+        <Pressable onPress={() => navigation.navigate('FollowList', { kind: 'following', userId: user?.id })} style={styles.followBox}>
+          <Text style={styles.followN}>{stats.following}</Text>
+          <Text style={styles.followL}>FOLLOWING</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.navigate('FollowList', { kind: 'followers', userId: user?.id })} style={styles.statBox}>
-          <Text style={styles.statN}>{stats.followers}</Text>
-          <Text style={styles.statL}>Followers</Text>
-        </Pressable>
-        <Pressable onPress={() => navigation.navigate('Rankings')} style={styles.rankBadge}>
-          <Text style={styles.rankT}>AP</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.duo}>
-        <Pressable onPress={() => navigation.navigate('Supporters')} style={[styles.duoCard, { backgroundColor: '#EDE9FE' }]}>
-          <Text style={styles.duoT}>Contribution List</Text>
-          <Text style={{ fontSize: 18 }}>🏆</Text>
-        </Pressable>
-        <Pressable onPress={() => navigation.navigate('Family', { userId: user?.id, name: displayName })} style={[styles.duoCard, { backgroundColor: '#FFEDD5' }]}>
-          <Text style={styles.duoT}>Fan Club</Text>
-          <Ionicons name="heart" size={18} color="#E11D48" />
+        <Pressable onPress={() => navigation.navigate('FollowList', { kind: 'followers', userId: user?.id })} style={styles.followBox}>
+          <Text style={styles.followN}>{stats.followers}</Text>
+          <Text style={styles.followL}>FOLLOWERS</Text>
         </Pressable>
       </View>
 
@@ -228,15 +223,16 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.moneyL}>COINS</Text>
         </Pressable>
         <Pressable onPress={() => navigation.navigate('Points')} style={[styles.moneyBox, { backgroundColor: '#FDE8F0' }]}>
-          <Text style={[styles.moneyN, { color: '#5D4037' }]}>{compactM(wallet.points)}</Text>
+          <Text style={[styles.moneyN, { color: '#9D174D' }]}>{compactM(wallet.points)}</Text>
           <Text style={styles.moneyL}>POINTS</Text>
         </Pressable>
-        {seller || admin ? (
-          <Pressable onPress={() => navigation.navigate('CoinSeller')} style={[styles.moneyBox, { backgroundColor: '#FDDDE4' }]}>
-            <Text style={[styles.moneyN, { color: '#C2185B' }]}>{compactM(wallet.giftCoins)}</Text>
-            <Text style={styles.moneyL}>GIFT COINS</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={() => navigation.navigate(seller || admin ? 'CoinSeller' : 'Wallet')}
+          style={[styles.moneyBox, { backgroundColor: '#FDDDE4' }]}
+        >
+          <Text style={[styles.moneyN, { color: '#C2185B' }]}>{compactM(wallet.giftCoins)}</Text>
+          <Text style={styles.moneyL}>GIFT COINS</Text>
+        </Pressable>
       </View>
 
       <View style={styles.ctaRow}>
@@ -247,10 +243,27 @@ export default function ProfileScreen({ navigation }) {
           </LinearGradient>
         </Pressable>
         <Pressable onPress={() => navigation.navigate('Withdraw')} style={{ flex: 1 }}>
-          <LinearGradient colors={['#F472B6', '#DB2777']} style={styles.cta}>
+          <LinearGradient colors={['#C084FC', '#DB2777']} style={styles.cta}>
             <Ionicons name="wallet-outline" size={16} color="#fff" />
-            <Text style={styles.ctaT}>Withdraw / Exchange</Text>
+            <Text style={styles.ctaT}>Withdraw / Recharge</Text>
           </LinearGradient>
+        </Pressable>
+      </View>
+
+      <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.editRow}>
+        <Ionicons name="person-outline" size={18} color="#8B6D3B" />
+        <Text style={styles.editRowT}>Edit profile</Text>
+        <Ionicons name="chevron-forward" size={18} color="#C4B08A" />
+      </Pressable>
+
+      <View style={styles.duo}>
+        <Pressable onPress={() => navigation.navigate('Supporters', { userId: user?.id, view: 'main', period: 'monthly' })} style={[styles.duoCard, { backgroundColor: '#EDE9FE' }]}>
+          <Text style={styles.duoT}>Contribution List</Text>
+          <Text style={{ fontSize: 18 }}>🏆</Text>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('Family', { userId: user?.id, name: displayName })} style={[styles.duoCard, { backgroundColor: '#FFEDD5' }]}>
+          <Text style={styles.duoT}>Fan Club</Text>
+          <Ionicons name="heart" size={18} color="#E11D48" />
         </Pressable>
       </View>
 
@@ -320,7 +333,9 @@ export default function ProfileScreen({ navigation }) {
           <MenuSec title="Host" />
           <CreamMenuRow icon="videocam-outline" title="Host / Streamer Center" subtitle="Earnings, hours, go live" onPress={() => navigation.navigate('StreamerCenter')} />
           <CreamMenuRow icon="id-card-outline" title="Live verification & selfie" onPress={() => navigation.navigate('LiveVerify')} />
-          <CreamMenuRow icon="document-text-outline" title="Live application" onPress={() => navigation.navigate('LiveApplication')} />
+          {(admin || isHost(user)) ? (
+            <CreamMenuRow icon="document-text-outline" title="Live application" onPress={() => navigation.navigate('LiveApplication')} />
+          ) : null}
           <CreamMenuRow icon="star-outline" title="Host earning policies" onPress={() => navigation.navigate('HostPolicies')} />
           {isHost(user) && !agency ? (
             <CreamMenuRow icon="handshake-outline" title="My Agency / Change Agency" onPress={() => navigation.navigate('HostAgency')} />
@@ -330,11 +345,37 @@ export default function ProfileScreen({ navigation }) {
         <CreamMenuRow icon="star-outline" title="Host earning policies" onPress={() => navigation.navigate('HostPolicies')} />
       )}
 
-      {seller || admin ? <CreamMenuRow icon="cash-outline" title="Coin Seller Center" onPress={() => navigation.navigate('CoinSeller')} /> : null}
+      {seller ? <CreamMenuRow icon="cash-outline" title="Coin Seller Center" onPress={() => navigation.navigate('CoinSeller')} /> : null}
       {bd ? <CreamMenuRow icon="git-network-outline" title="BD Center" onPress={() => navigation.navigate('BdCenter')} /> : null}
       {bd ? <CreamMenuRow icon="git-branch-outline" title="Hierarchy" onPress={() => navigation.navigate('Hierarchy')} /> : null}
       {agency ? <CreamMenuRow icon="business-outline" title="Agency Center" onPress={() => navigation.navigate('AgencyCenter')} /> : null}
-      {worker ? <CreamMenuRow icon="grid-outline" title="My Dashboard" onPress={() => navigation.navigate('WorkerDashboard')} /> : null}
+
+      <MenuSec title="Services" />
+      <CreamMenuRow icon="storefront-outline" title="Browse / book services" subtitle="Act as a customer" onPress={() => navigation.navigate('Services')} />
+      <CreamMenuRow icon="calendar-outline" title="My bookings" subtitle="Jobs you booked" onPress={() => navigation.navigate('MyServiceBookings')} />
+      {worker ? (
+        <>
+          <CreamMenuRow
+            icon="grid-outline"
+            title="Services Center"
+            subtitle="Jobs, earnings, availability"
+            onPress={() => navigation.navigate('WorkerDashboard')}
+          />
+          <CreamMenuRow
+            icon="construct-outline"
+            title="Manage my offerings"
+            subtitle="Edit services, rates, bio"
+            onPress={() => navigation.navigate('BecomePro')}
+          />
+        </>
+      ) : (
+        <CreamMenuRow
+          icon="hammer-outline"
+          title="Become a service provider"
+          subtitle="Same account · offer services too"
+          onPress={() => navigation.navigate('BecomePro')}
+        />
+      )}
 
       <MenuSec title="Me" />
       <CreamMenuRow icon="mail-outline" title="Invite" subtitle="Reward: $14/person" accent="#E89020" onPress={() => navigation.navigate('Referral')} />
@@ -351,7 +392,6 @@ export default function ProfileScreen({ navigation }) {
       <CreamMenuRow icon="chatbubbles-outline" title="Messages" onPress={() => navigation.navigate('Main', { screen: 'Chat' })} />
       <CreamMenuRow icon="notifications-outline" title="Notification settings" onPress={() => navigation.navigate('NotificationSettings')} />
       {!hideRoleApply(user) ? <CreamMenuRow icon="person-add-outline" title="Apply for Host / Agency / Seller" onPress={() => navigation.navigate('RoleApply')} /> : null}
-      <CreamMenuRow icon="briefcase-outline" title="Become a Pro" onPress={() => navigation.navigate('BecomePro')} />
       <CreamMenuRow icon="help-circle-outline" title="Help" onPress={() => navigation.navigate('Help')} />
       <CreamMenuRow icon="settings-outline" title="Settings" onPress={() => navigation.navigate('Settings')} />
       <CreamMenuRow icon="log-out-outline" title="Logout" accent="#B91C1C" onPress={logout} />
@@ -360,67 +400,117 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F7F8' },
-  meHead: { backgroundColor: '#FDF8EE', paddingHorizontal: 16, paddingBottom: 16 },
-  meTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  editIco: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(201,162,39,0.16)', alignItems: 'center', justifyContent: 'center' },
-  onlineLite: { color: '#16A34A', fontWeight: '700', fontSize: 12 },
-  meRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  meAv: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#fff' },
-  meName: { color: '#111', fontWeight: '800', fontSize: 18 },
-  idLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  idLite: { color: '#8B6D3B', fontWeight: '700' },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  rolePill: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: '800' },
-  pillB: { backgroundColor: '#60A5FA', color: '#fff', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: '800' },
-  pillC: { backgroundColor: '#22C55E', color: '#fff', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: '800' },
-  flag: { fontSize: 14 },
-  statRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 12 },
-  statBox: { flex: 1, alignItems: 'center' },
-  statN: { fontWeight: '800', fontSize: 20, color: '#111' },
-  statL: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
-  rankBadge: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#F5D76E', alignItems: 'center', justifyContent: 'center' },
-  rankT: { fontWeight: '900', color: '#7C4A12' },
+  root: { flex: 1, backgroundColor: '#FFF9E7' },
+  hero: { alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+  avWrap: { position: 'relative', marginBottom: 12 },
+  av: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: '#E8B923',
+    backgroundColor: '#F3E6C8',
+  },
+  avFallback: { borderWidth: 3, borderColor: '#E8B923' },
+  camBtn: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF8C00',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF9E7',
+  },
+  meName: {
+    color: '#5D4037',
+    fontWeight: '800',
+    fontSize: 24,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    textAlign: 'center',
+  },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, justifyContent: 'center' },
+  rolePill: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, fontSize: 11, fontWeight: '800' },
+  pillLv: { backgroundColor: '#60A5FA', color: '#fff', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, fontSize: 11, fontWeight: '800' },
+  pillSvip: { backgroundColor: '#7C3AED', color: '#fff', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, fontSize: 11, fontWeight: '800' },
   duo: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, marginTop: 10 },
-  duoCard: { flex: 1, borderRadius: 14, padding: 14, minHeight: 72, justifyContent: 'space-between' },
+  duoCard: {
+    flex: 1,
+    borderRadius: 14,
+    padding: 14,
+    minHeight: 72,
+    justifyContent: 'space-between',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 1 },
+    }),
+  },
   duoT: { fontWeight: '800', color: '#111' },
-  cpCard: { marginHorizontal: 14, marginTop: 12, borderRadius: 20, overflow: 'hidden' },
-  cpGrad: { padding: 14, minHeight: 168 },
+  cpCard: { marginHorizontal: 14, marginTop: 12, borderRadius: 18, overflow: 'hidden' },
+  cpGrad: { padding: 14, minHeight: 150 },
   cpTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cpLabel: { color: '#FDE68A', fontWeight: '800' },
-  cpLink: { color: '#F5D76E', fontWeight: '700', fontSize: 12 },
-  cpPair: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 10 },
-  cpSlot: { alignItems: 'center', width: 110 },
+  cpLabel: { color: '#FDE68A', fontWeight: '800', fontSize: 13 },
+  cpLink: { color: '#E9D5FF', fontWeight: '700', fontSize: 12 },
+  cpPair: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 12 },
+  cpSlot: { alignItems: 'center', width: 90 },
   cpAv: { width: 58, height: 58, borderRadius: 29, borderWidth: 2, borderColor: '#F5D76E' },
   cpEmpty: { width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  cpName: { color: '#FDE68A', fontWeight: '700', marginTop: 6, fontSize: 12 },
   cpMid: { alignItems: 'center' },
-  cpNum: { marginTop: 4, backgroundColor: '#F5D76E', width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  cpNumT: { fontWeight: '800', color: '#5D4037', fontSize: 12 },
+  cpNum: { marginTop: -10, backgroundColor: '#E5E7EB', width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  cpNumT: { fontWeight: '800', color: '#374151', fontSize: 12 },
   together: { textAlign: 'center', color: '#FDE68A', fontWeight: '700', marginTop: 10 },
   idPill: {
-    marginHorizontal: 14,
+    alignSelf: 'center',
     marginTop: 12,
     backgroundColor: '#FFF4CC',
     borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
   },
   idAdmin: { backgroundColor: '#FF8C00', color: '#fff', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: '800' },
-  idNum: { flex: 1, fontWeight: '800', color: '#5D4037', fontSize: 16 },
-  followRow: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 10 },
-  followBox: { flex: 1, backgroundColor: '#fff', borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  followN: { fontWeight: '800', fontSize: 18, color: '#5D4037' },
-  followL: { color: '#8B6D3B', fontSize: 11, fontWeight: '700', marginTop: 2 },
-  moneyRow: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 8 },
+  idNum: { fontWeight: '800', color: '#5D4037', fontSize: 16 },
+  followRow: { flexDirection: 'row', gap: 10, marginHorizontal: 14, marginTop: 12 },
+  followBox: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 1 },
+    }),
+  },
+  followN: { fontWeight: '800', fontSize: 20, color: '#1c1917' },
+  followL: { color: '#8B6D3B', fontSize: 11, fontWeight: '800', marginTop: 2, letterSpacing: 0.4 },
+  moneyRow: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 10 },
   moneyBox: { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  moneyN: { fontWeight: '800', fontSize: 13 },
+  moneyN: { fontWeight: '800', fontSize: 14 },
   moneyL: { color: '#8B6D3B', fontSize: 10, fontWeight: '800', marginTop: 2 },
-  ctaRow: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 10, marginBottom: 6 },
-  hostCtas: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 8, marginBottom: 4 },
+  ctaRow: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 10 },
+  hostCtas: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 10 },
+  editRow: {
+    marginHorizontal: 14,
+    marginTop: 10,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 1 },
+    }),
+  },
+  editRowT: { flex: 1, fontWeight: '700', color: '#5D4037', fontSize: 15 },
   sec: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, color: '#8B6D3B', fontWeight: '800', fontSize: 12, letterSpacing: 0.7, textTransform: 'uppercase' },
   cta: { borderRadius: 16, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   ctaT: { color: '#fff', fontWeight: '800', fontSize: 13 },

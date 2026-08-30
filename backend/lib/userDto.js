@@ -3,6 +3,7 @@
  */
 const { formatDisplayId } = require('./displayId');
 const { sanitizePublicText } = require('./safeText');
+const { displayPhone } = require('./userPhone');
 const { PLATFORM_OWNER_EMAIL } = require('../middleware/platformOwner');
 
 function publicUser(user, { self = false } = {}) {
@@ -42,7 +43,7 @@ function publicUser(user, { self = false } = {}) {
       ...base,
       id: user.id,
       email: user.email,
-      phone: user.phone,
+      phone: displayPhone(user),
       role: isOwner && !['super_admin', 'founder', 'ceo'].includes(role) ? 'super_admin' : user.role,
       roles: isOwner && !roles.includes('super_admin') ? [...roles, 'super_admin'] : roles,
       is_agency: isAgency,

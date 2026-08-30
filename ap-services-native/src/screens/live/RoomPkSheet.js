@@ -6,28 +6,44 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mediaUrl } from '../../config/api';
+import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../../components/ui';
 
-const TIMES = [
-  { m: 5, label: '5mins' },
-  { m: 15, label: '15mins' },
-  { m: 30, label: '30mins' },
-];
+const GOLD = '#F59E0B';
+const ORANGE = '#F97316';
 
 const MODES = [
-  { id: 'friend', tag: '1V1', name: 'Friend PK', icon: 'people', colors: ['#FBBF24', '#D97706'] },
-  { id: 'random', tag: '1V1', name: 'Random PK', icon: 'shuffle', colors: ['#FB7185', '#DB2777'] },
-  { id: 'team', tag: '3V3', name: 'Team PK', icon: 'people-circle', colors: ['#60A5FA', '#2563EB'], badge: '6' },
+  { id: 'friend', tag: '1V1', name: 'Friend PK', icon: 'people', art: '👥' },
+  { id: 'random', tag: '1V1', name: 'Random PK', icon: 'gift', art: '🎁', gift: true },
+  { id: 'team', tag: 'Team', name: 'Team PK', icon: 'extension-puzzle', art: '🧩', badge: 'New' },
 ];
 
-/** Webview-parity Room PK sheet (design: room-pk-sheet.png + social-live.css). */
+function personFromRoom(r) {
+  return {
+    userId: r.hostId || r.host_id || r.userId || r.id,
+    name: r.hostName || r.host_name || r.first_name || r.name || r.displayName || 'Host',
+    channel: r.channel,
+    profilePic: r.hostProfilePic || r.host_profile_pic || r.profile_pic || r.profilePic || r.cover,
+    live: Boolean(r.channel),
+  };
+}
+
+function personFromUser(u) {
+  return {
+    userId: u.id || u.userId || u.user_id,
+    name: u.displayName || u.first_name || u.name || 'User',
+    channel: u.channel || u.liveChannel,
+    profilePic: u.profilePic || u.profile_pic,
+    live: Boolean(u.isLive || u.channel),
+  };
+}
+
 export default function RoomPkSheet({
   visible,
   onClose,
@@ -38,52 +54,65 @@ export default function RoomPkSheet({
   onCancelMatch,
   matching = false,
   matchLabel = '',
-  matchSeconds = 0,
 }) {
   const insets = useSafeAreaInsets();
-  const [view, setView] = useState('home');
-  const [minutes, setMinutes] = useState(5);
-  const [mode, setMode] = useState('random');
-  const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState(null);
+  const { api } = useAuth();
+  const [mode, setMode] = useState('friend');
+  const [listTab, setListTab] = useState('friends');
+  const [randomTab, setRandomTab] = useState('activity');
+  const [allowParty, setAllowParty] = useState(false);
+  const [friends, setFriends] = useState([]);
+  const [fans, setFans] = useState([]);
+  const [showHelp, setShowHelp] = useState(false);
   const busy = useRef(false);
 
   useEffect(() => {
     if (!visible) {
-      setView('home');
-      setQuery('');
-      setPicked(null);
       busy.current = false;
       return;
     }
     onRefreshRooms?.();
+    setMode('friend');
+    setListTab('friends');
+    (async () => {
+      try {
+        const [f, fa] = await Promise.all([
+          api.get('/social/following/live').catch(() => api.get('/social/following')),
+          api.get('/social/followers'),
+        ]);
+        setFriends(api.extractList(f).map(personFromUser));
+        setFans(api.extractList(fa).map(personFromUser));
+      } catch (_e) {
+        setFriends([]);
+        setFans([]);
+      }
+    })();
   }, [visible]);
 
   useEffect(() => {
-    if (matching) setView('match');
-  }, [matching]);
+    if (mode === 'team') setListTab((t) => (t === 'friends' || t === 'fans' ? t : 'friends'));
+  }, [mode]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const list = Array.isArray(rooms) ? rooms : [];
-    if (!q) return list;
-    return list.filter((r) => {
-      const name = String(r.hostName || r.host_name || r.title || '').toLowerCase();
-      const ch = String(r.channel || '').toLowerCase();
-      const id = String(r.hostId || r.host_id || '').toLowerCase();
-      return name.includes(q) || ch.includes(q) || id.includes(q);
-    });
-  }, [rooms, query]);
+  const roomPeople = useMemo(() => (Array.isArray(rooms) ? rooms.map(personFromRoom) : []), [rooms]);
 
-  const challenge = async (rival, type, extra = {}) => {
+  const list = useMemo(() => {
+    if (listTab === 'fans') return fans;
+    if (listTab === 'recommend' || listTab === 'recent') return roomPeople;
+    if (friends.length) return friends;
+    return roomPeople;
+  }, [listTab, fans, friends, roomPeople]);
+
+  const challenge = async (rival, extra = {}) => {
     if (busy.current) return;
     busy.current = true;
     try {
       await onChallenge?.({
         rival,
-        type: type || mode,
-        durationMinutes: minutes,
-        durationSec: minutes * 60,
+        type: mode,
+        durationMinutes: 5,
+        durationSec: 300,
+        format: mode === 'team' ? '3v3' : '1v1',
+        allowParty,
         ...extra,
       });
     } finally {
@@ -93,217 +122,123 @@ export default function RoomPkSheet({
 
   if (!visible) return null;
 
+  const tabs = mode === 'team'
+    ? ['friends', 'fans', 'recommend', 'recent']
+    : ['friends', 'fans'];
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={view === 'match' ? undefined : onClose}>
+      <Pressable style={styles.backdrop} onPress={matching ? undefined : onClose}>
         <Pressable style={[styles.panel, { paddingBottom: Math.max(insets.bottom, 14) }]} onPress={() => {}}>
-          {view === 'home' ? (
-            <View>
-              <View style={styles.head}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.logoP}>P</Text>
-                  <Text style={styles.logoK}>K</Text>
-                  <Text style={styles.title}>Room PK</Text>
-                </View>
-                <View style={styles.headActions}>
-                  <Pressable
-                    onPress={() => {
-                      setMode('friend');
-                      setView('invite');
-                      onRefreshRooms?.();
-                    }}
-                    style={styles.invitation}
-                  >
-                    <Text style={styles.swords}>⚔</Text>
-                    <Text style={styles.invitationT}>Invitation</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {}}
-                    style={styles.help}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.helpT}>?</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.timeBlock}>
-                <Text style={styles.timeLabel}>Time</Text>
-                <View style={styles.timeRow}>
-                  {TIMES.map((t) => {
-                    const on = minutes === t.m;
-                    return (
-                      <Pressable key={t.m} onPress={() => setMinutes(t.m)} style={{ flex: 1 }}>
-                        {on ? (
-                          <LinearGradient colors={['#FF4FA3', '#7B5CFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.timeChipOn}>
-                            <Text style={styles.timeChipTOn}>{t.label}</Text>
-                          </LinearGradient>
-                        ) : (
-                          <View style={styles.timeChip}>
-                            <Text style={styles.timeChipT}>{t.label}</Text>
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              <View style={styles.modeRow}>
-                {MODES.map((m) => {
-                  const on = mode === m.id;
-                  return (
-                    <Pressable
-                      key={m.id}
-                      onPress={() => {
-                        setMode(m.id);
-                        setPicked(null);
-                        if (m.id === 'friend' || m.id === 'team') {
-                          setView('invite');
-                          onRefreshRooms?.();
-                        }
-                      }}
-                      style={[styles.modeCard, on && styles.modeCardOn]}
-                    >
-                      <Text style={styles.modeTag}>{m.tag}</Text>
-                      {m.badge ? <Text style={styles.modeBadge}>{m.badge}</Text> : null}
-                      <LinearGradient colors={m.colors} style={styles.modeArt}>
-                        <Ionicons name={m.icon} size={22} color="#fff" />
-                      </LinearGradient>
-                      <Text style={styles.modeName}>{m.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.ctaRow}>
-                <Pressable
-                  onPress={() => {
-                    setMode('random');
-                    setView('match');
-                    challenge(null, 'random', { random: true });
-                  }}
-                  style={styles.randomWrap}
-                >
-                  <LinearGradient
-                    colors={['#FF4FA3', '#60A5FA']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.randomBtn}
-                  >
-                    <Text style={styles.randomTitle}>Random Match</Text>
-                    <Text style={styles.randomSub}>{minutes}min</Text>
-                  </LinearGradient>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setMode('friend');
-                    setView('invite');
-                    onRefreshRooms?.();
-                  }}
-                  style={styles.inviteRoomBtn}
-                >
-                  <Text style={styles.inviteRoomT}>Invite a room</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-
-          {view === 'invite' ? (
-            <View style={{ maxHeight: 520 }}>
-              <View style={styles.inviteHead}>
-                <Pressable onPress={() => setView('home')} hitSlop={10} style={styles.backBtn}>
-                  <Ionicons name="chevron-back" size={22} color="#fff" />
-                </Pressable>
-                <Text style={styles.inviteTitle}>
-                  {mode === 'team' ? 'Team PK · pick rooms' : 'Invite a room'}
-                </Text>
-                <View style={{ width: 36 }} />
-              </View>
-              <View style={styles.searchWrap}>
-                <Ionicons name="search" size={16} color="#9CA3AF" />
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Search Room ID/User ID"
-                  placeholderTextColor="#6B7280"
-                  style={styles.searchInput}
-                />
-              </View>
-              {loadingRooms ? (
-                <ActivityIndicator color="#FF4FA3" style={{ marginTop: 24 }} />
-              ) : (
-                <ScrollView style={{ maxHeight: 380 }}>
-                  {filtered.map((r) => {
-                    const name = r.hostName || r.host_name || r.title || 'Host';
-                    const pic = r.hostProfilePic || r.host_profile_pic || r.cover;
-                    const on = picked?.channel === r.channel;
-                    return (
-                      <Pressable
-                        key={r.channel}
-                        onPress={() => {
-                          const rival = {
-                            userId: r.hostId || r.host_id,
-                            name,
-                            channel: r.channel,
-                            profilePic: pic,
-                          };
-                          setPicked(rival);
-                          setView('match');
-                          challenge(rival, mode === 'team' ? 'friend' : 'friend');
-                        }}
-                        style={[styles.roomRow, on && styles.roomRowOn]}
-                      >
-                        <Avatar uri={mediaUrl(pic)} name={name} size={44} />
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={styles.roomName} numberOfLines={1}>{name}</Text>
-                          <Text style={styles.roomMeta}>
-                            {Number(r.viewers || r.viewer_count || 0)} watching
-                          </Text>
-                        </View>
-                        <LinearGradient colors={['#FF4FA3', '#7B5CFF']} style={styles.pkChip}>
-                          <Text style={styles.pkChipT}>Invite</Text>
-                        </LinearGradient>
-                      </Pressable>
-                    );
-                  })}
-                  {!filtered.length ? (
-                    <Text style={styles.empty}>No other lives online to invite.</Text>
-                  ) : null}
-                </ScrollView>
-              )}
-            </View>
-          ) : null}
-
-          {view === 'match' ? (
-            <View style={styles.matchBody}>
-              <View style={styles.matchHead}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.logoP}>P</Text>
-                  <Text style={styles.logoK}>K</Text>
-                  <Text style={styles.title}>PK Matching..</Text>
-                </View>
-                <Text style={styles.matchDur}>{minutes}mins</Text>
-              </View>
-              <LinearGradient colors={['#60A5FA', '#F472B6']} style={styles.matchRing}>
-                <View style={styles.matchInner}>
-                  <Text style={styles.matchSecs}>
-                    {matchSeconds > 0 ? `${matchSeconds}s` : `${minutes * 60}s`}
-                  </Text>
-                </View>
-              </LinearGradient>
-              <Text style={styles.matchHint}>{matchLabel || 'Finding a host…'}</Text>
-              <Pressable
-                onPress={() => {
-                  onCancelMatch?.();
-                  setView('home');
-                }}
-                style={styles.cancelBtn}
-              >
-                <Text style={styles.cancelT}>Cancel</Text>
+          <View style={styles.head}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>PK Types</Text>
+              <Pressable onPress={() => setShowHelp((v) => !v)} hitSlop={8} style={styles.q}>
+                <Text style={styles.qT}>?</Text>
               </Pressable>
             </View>
+            <View style={styles.headIcons}>
+              <Ionicons name="settings-outline" size={20} color="#6B7280" />
+              <Ionicons name="time-outline" size={20} color="#6B7280" />
+            </View>
+          </View>
+
+          <LinearGradient colors={['#F59E0B', '#F97316']} style={styles.banner}>
+            <Text style={styles.bannerT}>PK Combat Points Ranking</Text>
+            <Text style={styles.bannerS}>25/08/2026 – 31/08/2026</Text>
+            <Text style={styles.bannerP}>🪙 112,770,000</Text>
+          </LinearGradient>
+          <View style={styles.rankBar}>
+            <Text style={styles.rankBarT}>🥈  No Rank</Text>
+          </View>
+          {showHelp ? (
+            <Text style={styles.help}>
+              Friend PK invites a live host. Random PK matches another room. Team PK supports up to 6 people (3v3). Tap a fighter on stage to switch to their stream and gift them.
+            </Text>
           ) : null}
+
+          <View style={styles.modeRow}>
+            {MODES.map((m) => {
+              const on = mode === m.id;
+              return (
+                <Pressable key={m.id} onPress={() => setMode(m.id)} style={[styles.modeCard, on && styles.modeCardOn]}>
+                  <Text style={styles.modeTag}>{m.tag}</Text>
+                  {m.badge ? <Text style={styles.newBadge}>{m.badge}</Text> : null}
+                  <Text style={styles.modeArt}>{m.art}</Text>
+                  <Text style={styles.modeName}>{m.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {mode === 'random' ? (
+            <View>
+              <View style={styles.pillRow}>
+                <Pressable onPress={() => setRandomTab('activity')} style={[styles.pill, randomTab === 'activity' && styles.pillOn]}>
+                  <Text style={[styles.pillT, randomTab === 'activity' && styles.pillTOn]}>Activity 🎁</Text>
+                </Pressable>
+                <Pressable onPress={() => setRandomTab('fun')} style={[styles.pill, randomTab === 'fun' && styles.pillOn]}>
+                  <Text style={[styles.pillT, randomTab === 'fun' && styles.pillTOn]}>Fun</Text>
+                </Pressable>
+              </View>
+              <View style={styles.radar}>
+                <View style={styles.radarRing} />
+                <View style={[styles.radarRing, { width: 90, height: 90, borderRadius: 45 }]} />
+                <View style={styles.radarDot} />
+              </View>
+              <Pressable onPress={() => setAllowParty((v) => !v)} style={styles.checkRow}>
+                <View style={[styles.box, allowParty && styles.boxOn]}>
+                  {allowParty ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                </View>
+                <Text style={styles.checkT}>Allow Matching with Party</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => challenge(null, { random: true })}
+                style={styles.pkCta}
+                disabled={matching}
+              >
+                <Text style={styles.pkCtaT}>{matching ? (matchLabel || 'Matching…') : 'PK'}</Text>
+              </Pressable>
+              {matching ? (
+                <Pressable onPress={() => onCancelMatch?.()} style={styles.cancelMatch}>
+                  <Text style={styles.cancelMatchT}>Cancel</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : (
+            <View style={{ maxHeight: 340 }}>
+              <View style={styles.pillRow}>
+                {tabs.map((t) => (
+                  <Pressable key={t} onPress={() => setListTab(t)} style={[styles.pill, listTab === t && styles.pillOn]}>
+                    <Text style={[styles.pillT, listTab === t && styles.pillTOn]}>
+                      {t === 'friends' ? 'Friends' : t === 'fans' ? 'Fans' : t === 'recommend' ? 'Recommend' : 'Recent'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {loadingRooms ? <ActivityIndicator color={ORANGE} style={{ marginTop: 20 }} /> : null}
+              <ScrollView style={{ maxHeight: 280 }}>
+                {list.map((p, i) => (
+                  <View key={String(p.userId || p.channel || i)} style={styles.userRow}>
+                    <Avatar uri={mediaUrl(p.profilePic)} name={p.name} size={44} />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.userName} numberOfLines={1}>{p.name}</Text>
+                      <Text style={styles.userMeta}>{p.live ? 'Connecting' : 'Invite to PK'}</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => challenge(p, { random: false })}
+                      style={p.live && mode === 'team' ? styles.joinBtn : styles.inviteBtn}
+                    >
+                      <Text style={p.live && mode === 'team' ? styles.joinT : styles.inviteT}>
+                        {p.live && mode === 'team' ? 'Join' : 'Invite'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ))}
+                {!list.length ? <Text style={styles.empty}>No one to invite yet. Open live rooms will show here.</Text> : null}
+              </ScrollView>
+            </View>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
@@ -328,19 +263,25 @@ export function PkBattleHud({
   const leftPct = Math.max(8, Math.round((left / total) * 100));
   const aName = pk?.leftName || hostName || 'You';
   const bName = pk?.rightName || challenge?.fromName || challenge?.targetName || rivalName || 'Rival';
+  const remain = pk?.endsAt || pk?.ends_at;
+  let clock = '';
+  if (remain) {
+    const s = Math.max(0, Math.floor((new Date(remain).getTime() - Date.now()) / 1000));
+    clock = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }
 
   return (
     <View style={hud.wrap} pointerEvents="box-none">
       <View style={hud.banner}>
-        <Text style={hud.bannerT}>{pk ? 'PK BATTLE' : 'PK CHALLENGE'}</Text>
+        <Text style={hud.bannerT}>{pk ? (clock ? `PK ${clock}` : 'PK BATTLE') : 'PK CHALLENGE'}</Text>
       </View>
       <View style={hud.bar}>
         <LinearGradient colors={['#FF4FA3', '#DB2777']} style={[hud.left, { flex: leftPct }]}>
-          <Text style={hud.score} numberOfLines={1}>{left}</Text>
+          <Text style={hud.score} numberOfLines={1}>{left.toLocaleString()}</Text>
         </LinearGradient>
         <View style={hud.vs}><Text style={hud.vsT}>PK</Text></View>
         <LinearGradient colors={['#60A5FA', '#2563EB']} style={[hud.right, { flex: 100 - leftPct }]}>
-          <Text style={hud.score} numberOfLines={1}>{right}</Text>
+          <Text style={hud.score} numberOfLines={1}>{right.toLocaleString()}</Text>
         </LinearGradient>
       </View>
       <View style={hud.names}>
@@ -361,164 +302,82 @@ export function PkBattleHud({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   panel: {
-    backgroundColor: '#1A1C26',
+    backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 12,
     maxHeight: '88%',
   },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 },
-  titleRow: { flexDirection: 'row', alignItems: 'center' },
-  logoP: { color: '#FF5EA8', fontWeight: '900', fontSize: 22, letterSpacing: -1 },
-  logoK: { color: '#6EC8FF', fontWeight: '900', fontSize: 22, letterSpacing: -1, marginRight: 8 },
-  title: { color: '#fff', fontWeight: '700', fontSize: 18 },
-  headActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  invitation: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
-  swords: { fontSize: 14 },
-  invitationT: { color: 'rgba(255,255,255,0.92)', fontWeight: '600', fontSize: 13 },
-  help: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { color: '#111', fontWeight: '800', fontSize: 20 },
+  q: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: '#9CA3AF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  helpT: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  timeBlock: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 22 },
-  timeLabel: { color: 'rgba(255,255,255,0.88)', fontWeight: '600', fontSize: 15, minWidth: 36 },
-  timeRow: { flex: 1, flexDirection: 'row', gap: 10 },
-  timeChip: {
-    borderRadius: 999,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  timeChipOn: { borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
-  timeChipT: { color: 'rgba(255,255,255,0.88)', fontWeight: '700', fontSize: 13 },
-  timeChipTOn: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  modeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  qT: { fontWeight: '800', color: '#6B7280', fontSize: 12 },
+  headIcons: { flexDirection: 'row', gap: 12 },
+  banner: { borderRadius: 12, padding: 12, marginBottom: 8 },
+  bannerT: { color: '#fff', fontWeight: '900' },
+  bannerS: { color: 'rgba(255,255,255,0.9)', fontWeight: '600', fontSize: 12, marginTop: 2 },
+  bannerP: { color: '#fff', fontWeight: '900', marginTop: 4 },
+  rankBar: { backgroundColor: '#F3F4F6', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginBottom: 12 },
+  rankBarT: { color: '#6B7280', fontWeight: '700' },
+  help: { color: '#4B5563', fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   modeCard: {
     flex: 1,
     alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 10,
-    paddingHorizontal: 4,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  modeCardOn: {
-    borderColor: '#FF4FA3',
-    backgroundColor: 'rgba(255,79,163,0.14)',
-  },
-  modeTag: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  modeBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    color: '#FBBF24',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  modeArt: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    marginBottom: 6,
-  },
-  modeName: { color: '#fff', fontWeight: '600', fontSize: 12, textAlign: 'center' },
-  ctaRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  randomWrap: { flex: 1.15, borderRadius: 999, overflow: 'hidden' },
-  randomBtn: { paddingVertical: 14, alignItems: 'center', borderRadius: 999 },
-  randomTitle: { color: '#fff', fontWeight: '900', fontSize: 15 },
-  randomSub: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 12, marginTop: 1 },
-  inviteRoomBtn: {
-    flex: 1,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-  },
-  inviteRoomT: { color: 'rgba(255,255,255,0.85)', fontWeight: '700', fontSize: 14 },
-  inviteHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  inviteTitle: { flex: 1, textAlign: 'center', color: '#fff', fontWeight: '800', fontSize: 16 },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
-    marginBottom: 10,
-  },
-  searchInput: { flex: 1, color: '#fff', fontWeight: '600' },
-  roomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  roomRowOn: { backgroundColor: 'rgba(255,79,163,0.1)' },
-  roomName: { color: '#fff', fontWeight: '800' },
-  roomMeta: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
-  pkChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  pkChipT: { color: '#fff', fontWeight: '900', fontSize: 12 },
-  empty: { color: '#9CA3AF', textAlign: 'center', marginTop: 28, fontWeight: '600' },
-  matchBody: { alignItems: 'center', paddingVertical: 18 },
-  matchHead: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 22,
-  },
-  matchDur: { color: '#FF4FA3', fontWeight: '800' },
-  matchRing: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
-    marginBottom: 14,
-  },
-  matchInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#12141C',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  matchSecs: { color: '#fff', fontWeight: '900', fontSize: 28 },
-  matchHint: { color: 'rgba(255,255,255,0.8)', fontWeight: '700', marginBottom: 16 },
-  cancelBtn: {
-    paddingHorizontal: 28,
     paddingVertical: 12,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
   },
-  cancelT: { color: '#fff', fontWeight: '800' },
+  modeCardOn: { borderColor: GOLD, backgroundColor: '#FFFBEB' },
+  modeTag: { position: 'absolute', top: 6, left: 6, color: '#7C3AED', fontSize: 9, fontWeight: '800' },
+  newBadge: { position: 'absolute', top: 6, right: 6, color: '#EF4444', fontSize: 9, fontWeight: '800' },
+  modeArt: { fontSize: 28, marginVertical: 6 },
+  modeName: { color: '#111', fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  pill: { borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 7 },
+  pillOn: { borderColor: GOLD, backgroundColor: '#FFFBEB' },
+  pillT: { color: '#6B7280', fontWeight: '700', fontSize: 13, textTransform: 'capitalize' },
+  pillTOn: { color: '#92400E' },
+  radar: { height: 140, alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  radarRing: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.25)',
+  },
+  radarDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#FB7185' },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, justifyContent: 'center' },
+  box: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: GOLD, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: GOLD },
+  checkT: { color: '#374151', fontWeight: '700' },
+  pkCta: { backgroundColor: ORANGE, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  pkCtaT: { color: '#fff', fontWeight: '900', fontSize: 18, letterSpacing: 1 },
+  cancelMatch: { alignItems: 'center', paddingVertical: 10 },
+  cancelMatchT: { color: '#6B7280', fontWeight: '700' },
+  userRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#F3F4F6' },
+  userName: { color: '#111', fontWeight: '800' },
+  userMeta: { color: '#9CA3AF', fontSize: 12, marginTop: 2 },
+  inviteBtn: { borderWidth: 1, borderColor: ORANGE, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 },
+  inviteT: { color: ORANGE, fontWeight: '800' },
+  joinBtn: { backgroundColor: ORANGE, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 },
+  joinT: { color: '#fff', fontWeight: '800' },
+  empty: { color: '#9CA3AF', textAlign: 'center', marginTop: 24, fontWeight: '600' },
 });
 
 const hud = StyleSheet.create({

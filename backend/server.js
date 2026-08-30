@@ -356,6 +356,12 @@ async function startServer() {
         const { ensureProfileAlbumSchema } = require('./config/ensureProfileAlbumSchema');
         await ensureProfileAlbumSchema();
         await ensureSocialProductionSchema();
+        const { ensureLuckyGiftSchema } = require('./config/ensureLuckyGiftSchema');
+        await ensureLuckyGiftSchema();
+        const { ensureLuckyBoxSchema } = require('./config/ensureLuckyBoxSchema');
+        await ensureLuckyBoxSchema();
+        const { ensurePartyRoomFollowSchema } = require('./config/ensurePartyRoomFollowSchema');
+        await ensurePartyRoomFollowSchema();
         await ensureSecurityHardeningSchema();
         await ensureProductionReadinessSchema();
         await ensureRoleApplicationsSchema();
@@ -367,6 +373,8 @@ async function startServer() {
         await ensureBdHierarchySchema();
         await ensurePartyModerationSchema();
         await ensureGamesSchema();
+        const { ensureWorkerCustomServicesSchema } = require('./config/ensureWorkerCustomServicesSchema');
+        await ensureWorkerCustomServicesSchema();
         const { ensureMatchCallSchema } = require('./config/ensureMatchCallSchema');
         await ensureMatchCallSchema();
         const { ensurePerformanceIndexes } = require('./config/ensurePerformanceIndexes');

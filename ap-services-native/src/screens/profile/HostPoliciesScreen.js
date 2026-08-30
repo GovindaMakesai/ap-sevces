@@ -4,8 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CreamHeader } from '../../components/creamChrome';
 
-export default function HostPoliciesScreen({ navigation }) {
-  const [tab, setTab] = useState('star');
+export default function HostPoliciesScreen({ navigation, route }) {
+  const initial = String(route?.params?.policy || 'star').toLowerCase();
+  const [tab, setTab] = useState(initial === 'normal' ? 'normal' : 'star');
   return (
     <View style={styles.root}>
       <CreamHeader title="Host earning policies" navigation={navigation} />

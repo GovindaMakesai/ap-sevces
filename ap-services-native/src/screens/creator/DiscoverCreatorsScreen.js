@@ -245,18 +245,18 @@ export default function DiscoverCreatorsScreen({ navigation }) {
   return (
     <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
       <View style={styles.matchRow}>
-        <Pressable onPress={() => matchNow(false)} disabled={Boolean(searching)} style={{ flex: 1, opacity: searching ? 0.6 : 1 }}>
+        <Pressable onPress={() => matchNow(false)} disabled={Boolean(searching)} style={[styles.matchWrap, searching && { opacity: 0.6 }]}>
           <LinearGradient colors={['#F472B6', '#A855F7']} style={styles.matchBtn}>
-            <Ionicons name="videocam" size={18} color="#fff" />
+            <Ionicons name="videocam" size={20} color="#fff" />
             <Text style={styles.matchT}>Video Match</Text>
-            <Text style={styles.matchCost}>{videoCost} coins/min</Text>
+            <Text style={styles.matchCost}>{videoCost}/min</Text>
           </LinearGradient>
         </Pressable>
-        <Pressable onPress={() => matchNow(true)} disabled={Boolean(searching)} style={{ flex: 1, opacity: searching ? 0.6 : 1 }}>
+        <Pressable onPress={() => matchNow(true)} disabled={Boolean(searching)} style={[styles.matchWrap, searching && { opacity: 0.6 }]}>
           <LinearGradient colors={['#38BDF8', '#2563EB']} style={styles.matchBtn}>
-            <Ionicons name="volume-high" size={18} color="#fff" />
+            <Ionicons name="volume-high" size={20} color="#fff" />
             <Text style={styles.matchT}>Voice Match</Text>
-            <Text style={styles.matchCost}>{voiceCost} coins/min</Text>
+            <Text style={styles.matchCost}>{voiceCost}/min</Text>
           </LinearGradient>
         </Pressable>
       </View>
@@ -342,10 +342,20 @@ export default function DiscoverCreatorsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
-  matchRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, marginBottom: 8 },
-  matchBtn: { alignItems: 'center', justifyContent: 'center', borderRadius: 999, paddingVertical: 12, gap: 2 },
-  matchT: { color: '#fff', fontWeight: '800', marginTop: 2 },
-  matchCost: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700' },
+  matchRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 14, marginBottom: 10, marginTop: 4 },
+  matchWrap: { flex: 1 },
+  matchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 10,
+    minHeight: 48,
+    gap: 6,
+  },
+  matchT: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  matchCost: { color: 'rgba(255,255,255,0.88)', fontSize: 10, fontWeight: '700' },
   sub: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, marginBottom: 8 },
   subTab: { marginRight: 18, alignItems: 'center' },
   subT: { color: '#9CA3AF', fontWeight: '700', fontSize: 16 },

@@ -224,3 +224,107 @@ exports.uploadChatMedia = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Upload failed' });
   }
 };
+
+exports.sendLuckyBox = async (req, res) => {
+  try {
+    const luckyBoxService = require('../services/luckyBoxService');
+    const liveRoomService = require('../services/liveRoomService');
+    const channel = String(req.body?.channel || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+    const room = await liveRoomService.findByChannel(channel);
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    const box = await luckyBoxService.createBox({
+      senderId: req.userId,
+      liveRoomId: room.id,
+      channel,
+      hostUserId: room.host_user_id,
+      mode: req.body?.mode,
+      claimMethod: req.body?.claimMethod || req.body?.claim_method,
+      participate: req.body?.participate,
+      unitCoins: req.body?.unitCoins || req.body?.unit_coins,
+      winnerCount: req.body?.winnerCount || req.body?.winner_count,
+      durationSec: req.body?.durationSec || req.body?.duration_sec,
+      senderName: req.body?.senderName,
+      senderPic: req.body?.senderPic,
+      clientRequestId: req.body?.clientRequestId || req.body?.client_request_id,
+    });
+    res.json({ success: true, data: box });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Could not send lucky box' });
+  }
+};
+
+exports.claimLuckyBox = async (req, res) => {
+  try {
+    const luckyBoxService = require('../services/luckyBoxService');
+    const result = await luckyBoxService.claimGrab({
+      boxId: req.params.id,
+      userId: req.userId,
+      displayName: req.body?.displayName,
+    });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Could not claim' });
+  }
+};
+
+exports.activeLuckyBoxes = async (req, res) => {
+  try {
+    const luckyBoxService = require('../services/luckyBoxService');
+    const data = await luckyBoxService.listActive(req.query.channel);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+exports.luckyBoxWinners = async (req, res) => {
+  try {
+    const luckyBoxService = require('../services/luckyBoxService');
+    const data = await luckyBoxService.listWinners(req.params.id);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+exports.roomFollowState = async (req, res) => {
+  try {
+    const partyRoomFollowService = require('../services/partyRoomFollowService');
+    const data = await partyRoomFollowService.getFollowState(req.params.channel, req.userId || req.user?.id);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+exports.followRoom = async (req, res) => {
+  try {
+    const partyRoomFollowService = require('../services/partyRoomFollowService');
+    const data = await partyRoomFollowService.followRoom(req.params.channel, req.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+exports.unfollowRoom = async (req, res) => {
+  try {
+    const partyRoomFollowService = require('../services/partyRoomFollowService');
+    const data = await partyRoomFollowService.unfollowRoom(req.params.channel, req.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+exports.listRoomFollowers = async (req, res) => {
+  try {
+    const partyRoomFollowService = require('../services/partyRoomFollowService');
+    const data = await partyRoomFollowService.listFollowers(req.params.channel, {
+      limit: req.query.limit,
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed' });
+  }
+};

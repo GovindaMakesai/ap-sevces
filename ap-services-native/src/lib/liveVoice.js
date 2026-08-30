@@ -198,6 +198,41 @@ export function ensureRemoteVideoOpen(engine, remoteUid) {
   }
 }
 
+/** Mute local + remote camera for party (audio-only) rooms. */
+export function muteRemoteVideoForAudioOnly(engine) {
+  if (!engine) return;
+  try {
+    engine.enableLocalVideo?.(false);
+  } catch (_e) {}
+  try {
+    engine.muteLocalVideoStream?.(true);
+  } catch (_e) {}
+  try {
+    engine.stopPreview?.();
+  } catch (_e) {}
+  try {
+    engine.muteAllRemoteVideoStreams?.(true);
+  } catch (_e) {}
+}
+
+export function partyAudienceMediaOptions(extra = {}) {
+  return audienceMediaOptions({
+    autoSubscribeVideo: false,
+    publishCameraTrack: false,
+    publishMicrophoneTrack: false,
+    ...extra,
+  });
+}
+
+export function partyPublisherMediaOptions(extra = {}) {
+  return publisherMediaOptions({
+    autoSubscribeVideo: false,
+    publishCameraTrack: false,
+    publishMicrophoneTrack: true,
+    ...extra,
+  });
+}
+
 /** Channel media options that must stay on every partial update — never drop video subscription. */
 export function audienceMediaOptions(extra = {}) {
   return {
@@ -235,7 +270,7 @@ export function ensureRemoteAudioOpen(engine, remoteUid) {
   }
 }
 
-export async function promoteToPublisher({ api, engine, channel, muted = false }) {
+export async function promoteToPublisher({ api, engine, channel, muted = false, audioOnly = false }) {
   if (!engine || !channel) return false;
   await requestMicPermission();
   await requestBluetoothConnect();
@@ -255,10 +290,15 @@ export async function promoteToPublisher({ api, engine, channel, muted = false }
     const role = Agora.ClientRoleType?.ClientRoleBroadcaster;
     if (role != null) engine.setClientRole?.(role);
     engine.updateChannelMediaOptions?.(
-      publisherMediaOptions({
-        publishMicrophoneTrack: true,
-        publishCameraTrack: false,
-      })
+      audioOnly
+        ? partyPublisherMediaOptions({
+            publishMicrophoneTrack: true,
+            publishCameraTrack: false,
+          })
+        : publisherMediaOptions({
+            publishMicrophoneTrack: true,
+            publishCameraTrack: false,
+          })
     );
   } catch (_e) {
     try {
@@ -273,19 +313,24 @@ export async function promoteToPublisher({ api, engine, channel, muted = false }
     engine.muteLocalAudioStream?.(Boolean(muted));
   } catch (_e) {}
 
-  configureAgoraVoice(engine, { publishing: true, party: true });
+  configureAgoraVoice(engine, { publishing: true, party: audioOnly });
   ensureRemoteAudioOpen(engine);
-  ensureRemoteVideoOpen(engine);
+  if (audioOnly) muteRemoteVideoForAudioOnly(engine);
+  else ensureRemoteVideoOpen(engine);
   await enterPublisherAudioRoute('seat_promote');
   await syncAgoraAudioRoute(engine, { speakerWanted: true, force: true });
   return true;
 }
 
-export async function demoteToAudience({ api, engine, channel }) {
+export async function demoteToAudience({ api, engine, channel, audioOnly = false }) {
   if (!engine) return;
   try {
     engine.updateChannelMediaOptions?.(
-      audienceMediaOptions({ publishMicrophoneTrack: false, publishCameraTrack: false })
+      audienceMediaOptions({
+        publishMicrophoneTrack: false,
+        publishCameraTrack: false,
+        autoSubscribeVideo: !audioOnly,
+      })
     );
   } catch (_e) {}
   try {
@@ -312,6 +357,7 @@ export async function demoteToAudience({ api, engine, channel }) {
   } catch (_e) {}
   await LiveAudioRoute.exitTalk('seat_leave');
   await syncAgoraAudioRoute(engine, { speakerWanted: true, force: true });
+  if (audioOnly) muteRemoteVideoForAudioOnly(engine);
 }
 
 export default {
@@ -328,6 +374,9 @@ export default {
   hasExternalAudio,
   ensureRemoteAudioOpen,
   ensureRemoteVideoOpen,
+  muteRemoteVideoForAudioOnly,
   audienceMediaOptions,
   publisherMediaOptions,
+  partyAudienceMediaOptions,
+  partyPublisherMediaOptions,
 };

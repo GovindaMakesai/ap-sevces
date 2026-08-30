@@ -4,9 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../config/theme';
-import { AuthCard, ErrorBanner, GoldButton, OAuthButton, OutlineButton } from '../../components/ui';
+import { AuthCard, ErrorBanner, OAuthButton } from '../../components/ui';
 
-export default function WelcomeScreen({ navigation }) {
+export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { startOAuth } = useAuth();
   const [error, setError] = useState('');
@@ -31,14 +31,32 @@ export default function WelcomeScreen({ navigation }) {
         <AuthCard>
           <Image source={require('../../../assets/logo-loading.png')} style={styles.logo} />
           <Text style={styles.title}>Welcome</Text>
-          <Text style={styles.sub}>Sign up or sign in with Google, Facebook, or GitHub.</Text>
+          <Text style={styles.sub}>Continue with Google, Facebook, or GitHub to sign in.</Text>
           <ErrorBanner message={error} />
           <View style={{ height: 8 }} />
-          <OAuthButton title={busy === 'google' ? 'Opening Google…' : 'Continue with Google'} ion="logo-google" iconColor="#ea4335" onPress={() => oauth('google')} disabled={!!busy} />
+          <OAuthButton
+            title={busy === 'google' ? 'Opening Google…' : 'Continue with Google'}
+            ion="logo-google"
+            iconColor="#ea4335"
+            onPress={() => oauth('google')}
+            disabled={!!busy}
+          />
           <View style={{ height: 10 }} />
-          <OAuthButton title={busy === 'facebook' ? 'Opening Facebook…' : 'Continue with Facebook'} ion="logo-facebook" iconColor="#1877f2" onPress={() => oauth('facebook')} disabled={!!busy} />
+          <OAuthButton
+            title={busy === 'facebook' ? 'Opening Facebook…' : 'Continue with Facebook'}
+            ion="logo-facebook"
+            iconColor="#1877f2"
+            onPress={() => oauth('facebook')}
+            disabled={!!busy}
+          />
           <View style={{ height: 10 }} />
-          <OAuthButton title={busy === 'github' ? 'Opening GitHub…' : 'Continue with GitHub'} ion="logo-github" iconColor="#111827" onPress={() => oauth('github')} disabled={!!busy} />
+          <OAuthButton
+            title={busy === 'github' ? 'Opening GitHub…' : 'Continue with GitHub'}
+            ion="logo-github"
+            iconColor="#111827"
+            onPress={() => oauth('github')}
+            disabled={!!busy}
+          />
 
           <View style={styles.benefits}>
             <Text style={styles.benefitTitle}>Why AP Live Service?</Text>
@@ -51,15 +69,6 @@ export default function WelcomeScreen({ navigation }) {
             <Text style={styles.quoteText}>“Love going live and connecting with my audience on AP Live Service!”</Text>
             <Text style={styles.cite}>— Host community</Text>
           </View>
-
-          <View style={styles.divider}>
-            <View style={styles.line} />
-            <Text style={styles.divText}>or email</Text>
-            <View style={styles.line} />
-          </View>
-          <GoldButton title="Sign in with email" onPress={() => navigation.navigate('Login')} />
-          <View style={{ height: 10 }} />
-          <OutlineButton title="Create an account" onPress={() => navigation.navigate('Register')} />
         </AuthCard>
       </ScrollView>
     </View>
@@ -85,7 +94,4 @@ const styles = StyleSheet.create({
   },
   quoteText: { color: colors.textGold, fontStyle: 'italic', fontSize: 13, lineHeight: 20 },
   cite: { marginTop: 8, color: colors.gold600, fontSize: 12, fontWeight: '700' },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 18 },
-  line: { flex: 1, height: 1, backgroundColor: 'rgba(201, 162, 39, 0.25)' },
-  divText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
 });

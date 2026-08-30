@@ -6,6 +6,7 @@ import { colors } from '../../config/theme';
 import { GoldButton, Loading } from '../../components/ui';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CreamCard, CreamPage } from '../../components/creamChrome';
+import CommentSheet from '../../components/CommentSheet';
 
 export default function AgencyScreen({ navigation }) {
   const { api } = useAuth();
@@ -42,81 +43,20 @@ export default function AgencyScreen({ navigation }) {
   );
 }
 
-export function LevelsScreen({ navigation }) {
-  const { api, user } = useAuth();
-  const [data, setData] = useState(null);
-  useFocusEffect(
-    useCallback(() => {
-      Promise.all([
-        api.get('/cp/levels/personal').catch(() => ({})),
-        api.get('/cp/levels/room').catch(() => ({})),
-        api.get(`/social/creators/${user?.id}/profile-panel`, null, { auth: false }).catch(() => ({})),
-      ]).then(([p, r, panel]) => setData({ personal: api.unwrap(p), room: api.unwrap(r), panel: api.unwrap(panel) }));
-    }, [api, user?.id])
-  );
-  if (!data) {
-    return (
-      <CreamPage title="Levels" navigation={navigation}>
-        <Loading />
-      </CreamPage>
-    );
-  }
-  const personal = Number(data.personal?.level || data.personal?.lvl || data.panel?.level || user?.level || 1);
-  const room = Number(data.room?.level || data.room?.lvl || 1);
-  const xp = Math.min(100, Number(data.personal?.xp_pct || data.personal?.progress || (personal % 10) * 10));
-  const rxp = Math.min(100, Number(data.room?.xp_pct || data.room?.progress || (room % 10) * 10));
-  return (
-    <CreamPage title="Levels" navigation={navigation}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <LinearGradient colors={['#1E3A8A', '#2563EB']} style={{ margin: 14, borderRadius: 22, padding: 20, alignItems: 'center' }}>
-          <Text style={{ color: '#BFDBFE', fontWeight: '700' }}>Personal level</Text>
-          <View style={{ width: 120, height: 120, borderRadius: 60, borderWidth: 8, borderColor: '#FBBF24', alignItems: 'center', justifyContent: 'center', marginVertical: 12, backgroundColor: 'rgba(255,255,255,0.08)' }}>
-            <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800' }}>{personal}</Text>
-          </View>
-          <Text style={{ color: '#fff', fontWeight: '800' }}>Lv.{personal}</Text>
-          <View style={{ width: '100%', height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, marginTop: 12, overflow: 'hidden' }}>
-            <View style={{ width: `${xp}%`, height: 8, backgroundColor: '#FBBF24' }} />
-          </View>
-          <Text style={{ color: '#DBEAFE', marginTop: 8, fontSize: 12 }}>Send gifts and stay live to level up.</Text>
-        </LinearGradient>
-        <LinearGradient colors={['#4C1D95', '#7C3AED']} style={{ marginHorizontal: 14, borderRadius: 22, padding: 20, alignItems: 'center' }}>
-          <Text style={{ color: '#DDD6FE', fontWeight: '700' }}>Room level</Text>
-          <View style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 8, borderColor: '#C4B5FD', alignItems: 'center', justifyContent: 'center', marginVertical: 12, backgroundColor: 'rgba(255,255,255,0.08)' }}>
-            <Text style={{ color: '#fff', fontSize: 32, fontWeight: '800' }}>{room}</Text>
-          </View>
-          <Text style={{ color: '#fff', fontWeight: '800' }}>Lv.{room}</Text>
-          <View style={{ width: '100%', height: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, marginTop: 12, overflow: 'hidden' }}>
-            <View style={{ width: `${rxp}%`, height: 8, backgroundColor: '#C4B5FD' }} />
-          </View>
-          <Text style={{ color: '#EDE9FE', marginTop: 8, fontSize: 12 }}>Gifts in your live room raise this level.</Text>
-        </LinearGradient>
-        <View style={{ margin: 14 }}>
-          <GoldButton title="Open CP House" onPress={() => navigation.navigate('Cp')} />
-        </View>
-      </ScrollView>
-    </CreamPage>
-  );
-}
-
 export function CommentsScreen({ route, navigation }) {
   const { postId } = route.params || {};
-  const { api } = useAuth();
-  const [rows, setRows] = useState([]);
-  useFocusEffect(
-    useCallback(() => {
-      api.get(`/social/posts/${postId}/comments`, null, { auth: false }).then((r) => setRows(api.extractList(r))).catch(() => {});
-    }, [api, postId])
-  );
+  const { api, user } = useAuth();
+  const post = postId ? { id: postId } : null;
   return (
     <CreamPage title="Comments" navigation={navigation}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
-        {rows.map((c, i) => (
-          <Text key={c.id || i} style={{ marginBottom: 10, color: colors.textPrimary }}>
-            <Text style={{ fontWeight: '700', color: colors.gold700 }}>{c.author?.first_name || c.user?.name || 'User'}: </Text>
-            {c.text || c.body || c.content}
-          </Text>
-        ))}
-      </ScrollView>
+      <CommentSheet
+        visible={Boolean(postId)}
+        post={post}
+        api={api}
+        user={user}
+        navigation={navigation}
+        onClose={() => navigation.goBack()}
+      />
     </CreamPage>
   );
 }

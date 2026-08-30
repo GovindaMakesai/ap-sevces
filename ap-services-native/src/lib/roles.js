@@ -90,7 +90,19 @@ export function isBd(user) {
 }
 
 export function isWorker(user) {
-  return roleOf(user) === 'worker';
+  if (!user) return false;
+  if (roleOf(user) === 'worker') return true;
+  // Same account can keep admin/host/etc. while also having a services worker profile.
+  if (user.is_worker === true || user.isWorker === true || user.has_worker_profile === true) return true;
+  if (user.worker_id || user.workerId || user.worker_profile_id || user.workerProfileId) return true;
+  if (user.worker_profile || user.workerProfile) return true;
+  return false;
+}
+
+/** Prefer live API profile when role flags are missing (e.g. super admin with a worker row). */
+export function workerProfileFromDashboard(dash) {
+  const profile = dash?.profile || dash?.worker || null;
+  return profile?.id ? profile : null;
 }
 
 export function hideRoleApply(user) {
@@ -126,7 +138,7 @@ export function hierarchyKeys(user) {
   if (r === 'agency') push('agency');
   if (r === 'creator' || r === 'host') push('host');
   if (r === 'coin_seller' || r === 'seller' || user?.is_coin_seller) push('seller');
-  if (r === 'worker') push('pro');
+  if (isWorker(user)) push('pro');
   return keys;
 }
 

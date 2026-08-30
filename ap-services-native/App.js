@@ -11,12 +11,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SocketProvider } from './src/context/SocketContext';
+import { LiveMiniProvider } from './src/context/LiveMiniContext';
+import LiveMiniPlayer from './src/components/LiveMiniPlayer';
 import { colors } from './src/config/theme';
 import { requireScreen } from './src/lib/deferScreen';
 import MainTabs from './src/navigation/RootNavigator';
 import WelcomeScreen from './src/screens/auth/WelcomeScreen';
-import LoginScreen from './src/screens/auth/LoginScreen';
-import RegisterScreen from './src/screens/auth/RegisterScreen';
 import { extractNotificationData, resolvePushRoute } from './src/lib/push';
 
 /* Clear leftover FLAG_SECURE from a prior live/PK session so party + rest of app stay screenshotable */
@@ -44,6 +44,7 @@ const SearchScreen = requireScreen(() => require('./src/screens/search/SearchScr
 const ReferralScreen = requireScreen(() => require('./src/screens/referral/ReferralScreen'));
 const StreamerCenterScreen = requireScreen(() => require('./src/screens/profile/StreamerCenterScreen'));
 const SettingsScreen = requireScreen(() => require('./src/screens/profile/SettingsScreen'));
+const CameraKitTestScreen = requireScreen(() => require('./src/screens/dev/CameraKitTestScreen'));
 const NotificationSettingsScreen = requireScreen(() => require('./src/screens/profile/NotificationSettingsScreen'));
 const LiveVerifyScreen = requireScreen(() => require('./src/screens/profile/LiveVerifyScreen'));
 const RoleApplyScreen = requireScreen(() => require('./src/screens/profile/RoleApplyScreen'));
@@ -64,7 +65,7 @@ const GamesScreen = requireScreen(() => require('./src/screens/games/GamesScreen
 const GamePlayScreen = requireScreen(() => require('./src/screens/games/GamesScreen'), (m) => m.GamePlayScreen);
 
 const AgencyScreen = requireScreen(() => require('./src/screens/agency/AgencyScreen'));
-const LevelsScreen = requireScreen(() => require('./src/screens/agency/AgencyScreen'), (m) => m.LevelsScreen);
+const LevelsScreen = requireScreen(() => require('./src/screens/profile/LevelsScreen'));
 const CommentsScreen = requireScreen(() => require('./src/screens/agency/AgencyScreen'), (m) => m.CommentsScreen);
 
 const AdminDashboardScreen = requireScreen(() => require('./src/screens/admin/AdminDashboardScreen'));
@@ -90,6 +91,11 @@ const PointsScreen = requireScreen(() => require('./src/screens/hubs/Hubs'), (m)
 const PrivilegesScreen = requireScreen(() => require('./src/screens/hubs/Hubs'), (m) => m.PrivilegesScreen);
 const ServiceDetailsScreen = requireScreen(() => require('./src/screens/hubs/Hubs'), (m) => m.ServiceDetailsScreen);
 const ServicesScreen = requireScreen(() => require('./src/screens/hubs/Hubs'), (m) => m.ServicesScreen);
+const ServiceBookingScreen = requireScreen(() => require('./src/screens/services/ServiceBookingScreen'));
+const MyBookingsScreen = requireScreen(() => require('./src/screens/services/MyBookingsScreen'));
+const BookingDetailsScreen = requireScreen(() => require('./src/screens/services/BookingDetailsScreen'));
+const ServicesCenterScreen = requireScreen(() => require('./src/screens/services/ServicesCenterScreen'));
+
 const SquareScreen = requireScreen(() => require('./src/screens/square/SquareScreen'));
 const ReelViewerScreen = requireScreen(() => require('./src/screens/video/ReelViewerScreen'));
 const TopicsScreen = requireScreen(() => require('./src/screens/hubs/Hubs'), (m) => m.TopicsScreen);
@@ -123,6 +129,7 @@ function Root() {
 
   return (
     <NavigationContainer ref={navRef}>
+      <LiveMiniProvider navigationRef={navRef}>
       <StatusBar style="dark" />
       {isLoggedIn ? <MatchCallBridge /> : null}
       <Stack.Navigator
@@ -158,11 +165,11 @@ function Root() {
             <Stack.Screen name="Cp" component={CpHouseScreen} options={{ headerShown: false }} />
             <Stack.Screen name="CpRankings" component={CpRankingsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Visitors" component={VisitorsScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Svip" component={SvipScreen} options={{ title: 'AP LIVE SVIP', headerStyle: { backgroundColor: '#2a0536' }, headerTintColor: '#fbbf24' }} />
+            <Stack.Screen name="Svip" component={SvipScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Family" component={FamilyScreen} options={{ headerShown: false }} />
             <Stack.Screen name="BadgeHub" component={BadgeHubScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="SvipSettings" component={SvipSettingsScreen} options={{ title: 'Privilege settings' }} />
-            <Stack.Screen name="SvipIntro" component={SvipIntroScreen} options={{ title: 'SVIP introduction' }} />
+            <Stack.Screen name="SvipSettings" component={SvipSettingsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="SvipIntro" component={SvipIntroScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Games" component={GamesScreen} />
             <Stack.Screen name="GamePlay" component={GamePlayScreen} options={({ route }) => ({ title: route.params?.name || 'Game' })} />
             <Stack.Screen name="CreatorProfile" component={CreatorProfileScreen} options={{ headerShown: false }} />
@@ -177,10 +184,11 @@ function Root() {
             <Stack.Screen name="Comments" component={CommentsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="StreamerCenter" component={StreamerCenterScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="CameraKitTest" component={CameraKitTestScreen} options={{ headerShown: false }} />
             <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="LiveVerify" component={LiveVerifyScreen} options={{ headerShown: false }} />
             <Stack.Screen name="RoleApply" component={RoleApplyScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false, presentation: 'modal' }} />
             <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="AdminUserDetails" component={AdminUserDetailsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="CoinSeller" component={CoinSellerScreen} options={{ headerShown: false }} />
@@ -198,6 +206,10 @@ function Root() {
             <Stack.Screen name="LuckyGifts" component={LuckyGiftsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Services" component={ServicesScreen} options={{ headerShown: false }} />
             <Stack.Screen name="ServiceDetails" component={ServiceDetailsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ServiceBooking" component={ServiceBookingScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="MyServiceBookings" component={MyBookingsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ServiceBookingDetails" component={BookingDetailsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ServicesCenter" component={ServicesCenterScreen} options={{ headerShown: false }} />
             <Stack.Screen name="WorkerDashboard" component={WorkerDashboardScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Square" component={SquareScreen} options={{ headerShown: false }} />
             <Stack.Screen
@@ -216,11 +228,11 @@ function Root() {
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
           </>
         )}
       </Stack.Navigator>
+      {isLoggedIn ? <LiveMiniPlayer navigationRef={navRef} /> : null}
+      </LiveMiniProvider>
     </NavigationContainer>
   );
 }

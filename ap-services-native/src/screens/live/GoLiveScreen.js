@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  NativeModules,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -17,8 +18,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../context/AuthContext';
 import { Avatar } from '../../components/ui';
+import * as ImagePicker from 'expo-image-picker';
 import { cancelMatch } from '../../lib/matchCall';
 import { mediaUrl } from '../../config/api';
+import { pickMedia } from '../../lib/pickMedia';
 import { BEAUTY_FILTERS, applyAgoraBeauty, beautyTint } from '../../lib/liveBeauty';
 
 const FILTER_KEY = 'ap_live_beauty_filter';
@@ -32,7 +35,7 @@ try {
 
 /**
  * Webview / design parity: full camera, top edit capsule, Beauty + Go + Mic, Live|Party.
- * Filters only appear when Beauty is opened — applied live on camera.
+ * Beauty dock opens by default on Live so filters are visible on the start-live preview.
  */
 export default function GoLiveScreen({ navigation, route }) {
   const initialParty = Boolean(route.params?.isParty);
@@ -41,13 +44,14 @@ export default function GoLiveScreen({ navigation, route }) {
   const [isParty, setIsParty] = useState(initialParty);
   const [title, setTitle] = useState('');
   const [cover, setCover] = useState(null);
-  const [filter, setFilter] = useState('none');
-  const [showBeauty, setShowBeauty] = useState(false);
+  const [filter, setFilter] = useState('natural');
+  const [showBeauty, setShowBeauty] = useState(!initialParty);
   const [showEdit, setShowEdit] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
+  const [frontCam, setFrontCam] = useState(true);
   const started = useRef(false);
   const engineRef = useRef(null);
   const filterRef = useRef(filter);
@@ -63,8 +67,25 @@ export default function GoLiveScreen({ navigation, route }) {
 
   useEffect(() => {
     let cancelled = false;
+    let beautyTimers = [];
     (async () => {
+      if (isParty) {
+        try {
+          engineRef.current?.stopPreview?.();
+          engineRef.current?.enableLocalVideo?.(false);
+          engineRef.current?.release?.();
+        } catch (_e) {}
+        engineRef.current = null;
+        if (!cancelled) {
+          setPreviewReady(false);
+          setError('');
+          setShowBeauty(false);
+        }
+        return;
+      }
+      if (!cancelled) setShowBeauty(true);
       if (!Agora) {
+        setError('Camera preview needs a native build with Agora');
         setPreviewReady(false);
         return;
       }
@@ -77,29 +98,51 @@ export default function GoLiveScreen({ navigation, route }) {
             setPreviewReady(false);
             return;
           }
+        } else {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            setError('Allow camera to preview before going live');
+            setPreviewReady(false);
+            return;
+          }
         }
-        const tokenRes = await api
-          .post('/live/agora/token', {
-            channel: `preview${String(user?.id || 'x').replace(/-/g, '').slice(0, 10)}`,
-            role: 'host',
-          })
-          .catch(() => null);
-        const appId = tokenRes?.appId || tokenRes?.data?.appId;
-        if (!appId || cancelled) return;
+        const cfgRes = await api.get('/live/agora/config', null, { auth: false }).catch(() => null);
+        const cfg = api.unwrap?.(cfgRes) || cfgRes || {};
+        const appId = cfg.appId || cfgRes?.appId;
+        if (!appId) {
+          if (!cancelled) {
+            setPreviewReady(false);
+            setError(cfg.ready === false ? 'Live camera is not configured on the server' : 'Could not load camera settings');
+          }
+          return;
+        }
         try {
           engineRef.current?.stopPreview?.();
           engineRef.current?.release?.();
         } catch (_e) {}
-        const { createAgoraRtcEngine } = Agora;
+        const { createAgoraRtcEngine, ChannelProfileType, ClientRoleType } = Agora;
         const engine = createAgoraRtcEngine();
         engineRef.current = engine;
-        engine.initialize({ appId });
+        engine.initialize({
+          appId,
+          channelProfile: ChannelProfileType?.ChannelProfileLiveBroadcasting,
+        });
+        try {
+          engine.setChannelProfile?.(ChannelProfileType?.ChannelProfileLiveBroadcasting);
+          engine.setClientRole?.(ClientRoleType?.ClientRoleBroadcaster);
+        } catch (_e) {}
         engine.enableVideo?.();
         engine.enableLocalVideo?.(true);
         engine.enableLocalAudio?.(true);
         engine.muteLocalAudioStream?.(!micOn);
         engine.startPreview?.();
-        applyAgoraBeauty(engine, filterRef.current);
+        const applyNow = () => {
+          if (cancelled || engineRef.current !== engine) return;
+          applyAgoraBeauty(engine, filterRef.current);
+        };
+        applyNow();
+        /* Beauty often sticks only after the capture pipeline is warm */
+        beautyTimers = [80, 350, 900].map((ms) => setTimeout(applyNow, ms));
         if (!cancelled) {
           setError('');
           setPreviewReady(true);
@@ -113,6 +156,7 @@ export default function GoLiveScreen({ navigation, route }) {
     })();
     return () => {
       cancelled = true;
+      beautyTimers.forEach((t) => clearTimeout(t));
       try {
         engineRef.current?.stopPreview?.();
         engineRef.current?.release?.();
@@ -120,12 +164,11 @@ export default function GoLiveScreen({ navigation, route }) {
       engineRef.current = null;
       setPreviewReady(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, user?.id]);
+  }, [api, user?.id, isParty]);
 
   useEffect(() => {
-    if (engineRef.current) applyAgoraBeauty(engineRef.current, filter);
-  }, [filter]);
+    if (engineRef.current && previewReady) applyAgoraBeauty(engineRef.current, filter);
+  }, [filter, previewReady]);
 
   useEffect(() => {
     try {
@@ -137,6 +180,13 @@ export default function GoLiveScreen({ navigation, route }) {
     setFilter(id);
     AsyncStorage.setItem(FILTER_KEY, id).catch(() => {});
     if (engineRef.current) applyAgoraBeauty(engineRef.current, id);
+  };
+
+  const flipCamera = () => {
+    try {
+      engineRef.current?.switchCamera?.();
+      setFrontCam((v) => !v);
+    } catch (_e) {}
   };
 
   const pickCover = async () => {
@@ -151,11 +201,11 @@ export default function GoLiveScreen({ navigation, route }) {
     started.current = true;
     try {
       if (Platform.OS === 'android') {
-        const results = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        ]);
-        if (results[PermissionsAndroid.PERMISSIONS.CAMERA] !== PermissionsAndroid.RESULTS.GRANTED) {
+        const perms = isParty
+          ? [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO]
+          : [PermissionsAndroid.PERMISSIONS.CAMERA, PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+        const results = await PermissionsAndroid.requestMultiple(perms);
+        if (!isParty && results[PermissionsAndroid.PERMISSIONS.CAMERA] !== PermissionsAndroid.RESULTS.GRANTED) {
           started.current = false;
           setBusy(false);
           setError('Camera permission is required');
@@ -178,7 +228,7 @@ export default function GoLiveScreen({ navigation, route }) {
           title: title.trim() || undefined,
           coverUrl: cover,
           roomType: isParty ? 'party' : 'live',
-          audioOnly: false,
+          audioOnly: Boolean(isParty),
           beautyFilter: filter,
         });
       } catch (e) {
@@ -218,8 +268,10 @@ export default function GoLiveScreen({ navigation, route }) {
       {showCam ? (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <RtcView
-            style={[StyleSheet.absoluteFill, { transform: [{ scaleX: -1 }] }]}
+            style={[StyleSheet.absoluteFill, frontCam ? { transform: [{ scaleX: -1 }] } : null]}
             canvas={{ uid: 0, sourceType: VideoSourceType?.VideoSourceCamera }}
+            zOrderMediaOverlay={Platform.OS === 'android'}
+            collapsable={false}
           />
           {tint ? <View style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} /> : null}
         </View>
@@ -248,22 +300,23 @@ export default function GoLiveScreen({ navigation, route }) {
             <Text style={styles.editPillT}>Edit</Text>
           </View>
         </Pressable>
-        <View style={{ width: 40 }} />
+        <Pressable onPress={flipCamera} style={styles.flipBtn} hitSlop={8} disabled={!showCam}>
+          <Ionicons name="camera-reverse" size={22} color="#fff" />
+        </Pressable>
       </View>
 
       {isParty && !showCam ? (
         <View style={styles.partyHint}>
           <Avatar uri={mediaUrl(cover || user?.profile_pic)} name={displayName} size={88} />
-          <Text style={styles.partyHintT}>Party · video + voice on seats</Text>
+          <Text style={styles.partyHintT}>Party · audio only</Text>
         </View>
       ) : null}
 
       {error ? <Text style={styles.err}>{error}</Text> : null}
 
-      {/* Beauty filters — only when Beauty is open (webview flow) */}
-      {showBeauty && !isParty ? (
+      {showBeauty ? (
         <View style={[styles.beautyDock, { bottom: 118 + insets.bottom }]}>
-          <Text style={styles.beautyTitle}>Beauty · see on camera</Text>
+          <Text style={styles.beautyTitle}>Filters · tap to preview</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
             {BEAUTY_FILTERS.map((f) => {
               const on = filter === f.id;
@@ -277,22 +330,31 @@ export default function GoLiveScreen({ navigation, route }) {
               );
             })}
           </ScrollView>
+          {Platform.OS === 'android' && __DEV__ && NativeModules.CameraKitTest?.openTest ? (
+            <Pressable
+              onPress={() => {
+                NativeModules.CameraKitTest.openTest().catch((e) => {
+                  Alert.alert('Snap lenses', e?.message || 'Could not open Camera Kit');
+                });
+              }}
+              style={styles.snapLensBtn}
+            >
+              <Ionicons name="sparkles" size={14} color="#FDE68A" />
+              <Text style={styles.snapLensT}>Try Snap lenses (preview only)</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.dock}>
-          {!isParty ? (
-            <Pressable
-              onPress={() => setShowBeauty((v) => !v)}
-              style={[styles.sideBtn, showBeauty && styles.sideBtnOn]}
-            >
-              <Ionicons name="color-wand" size={22} color="#fff" />
-              <Text style={styles.sideBtnT}>Beauty</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.sideBtn} />
-          )}
+          <Pressable
+            onPress={() => setShowBeauty((v) => !v)}
+            style={[styles.sideBtn, showBeauty && styles.sideBtnOn]}
+          >
+            <Ionicons name="color-wand" size={22} color="#fff" />
+            <Text style={styles.sideBtnT}>Beauty</Text>
+          </Pressable>
 
           <Pressable onPress={start} disabled={busy} style={[styles.goWrap, busy && { opacity: 0.6 }]}>
             <View style={styles.goBtn}>
@@ -307,7 +369,7 @@ export default function GoLiveScreen({ navigation, route }) {
         </View>
 
         <View style={styles.tabs}>
-          <Pressable onPress={() => { setIsParty(false); setShowBeauty(false); }} style={styles.tab}>
+          <Pressable onPress={() => { setIsParty(false); setShowBeauty(true); }} style={styles.tab}>
             <Text style={[styles.tabT, !isParty && styles.tabTOn]}>Live</Text>
             {!isParty ? <View style={styles.tabBar} /> : null}
           </Pressable>
@@ -352,6 +414,7 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   xBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  flipBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   capsule: {
     flex: 1,
     flexDirection: 'row',
@@ -421,6 +484,21 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   filterLabelOn: { color: '#FDE68A', fontWeight: '900' },
+  snapLensBtn: {
+    marginTop: 10,
+    marginHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(253,230,138,0.35)',
+  },
+  snapLensT: { color: '#FDE68A', fontWeight: '800', fontSize: 12 },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 7 },
   dock: {
     flexDirection: 'row',

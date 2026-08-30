@@ -138,19 +138,52 @@ class Service {
         return result.rows;
     }
     
-    // Create a new service (admin only)
+    // Create a new service (admin or custom worker offering)
     static async create(serviceData) {
-        const { name, category, description, icon, base_price, price_type } = serviceData;
-        
-        const query = `
-            INSERT INTO services (name, category, description, icon, base_price, price_type)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING *
-        `;
-        
-        const values = [name, category, description, icon, base_price, price_type];
-        const result = await db.query(query, values);
-        return result.rows[0];
+        const {
+            name,
+            category,
+            description,
+            icon,
+            base_price,
+            price_type,
+            image_url = null,
+            is_custom = false,
+            created_by_user_id = null,
+        } = serviceData;
+
+        try {
+            const { ensureWorkerCustomServicesSchema } = require('../config/ensureWorkerCustomServicesSchema');
+            await ensureWorkerCustomServicesSchema();
+            const result = await db.query(
+                `INSERT INTO services (
+                    name, category, description, icon, base_price, price_type,
+                    image_url, is_custom, created_by_user_id
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                 RETURNING *`,
+                [
+                    name,
+                    category,
+                    description || null,
+                    icon || null,
+                    base_price,
+                    price_type || 'hourly',
+                    image_url,
+                    Boolean(is_custom),
+                    created_by_user_id,
+                ]
+            );
+            return result.rows[0];
+        } catch (_e) {
+            const query = `
+                INSERT INTO services (name, category, description, icon, base_price, price_type)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING *
+            `;
+            const values = [name, category, description, icon, base_price, price_type];
+            const result = await db.query(query, values);
+            return result.rows[0];
+        }
     }
     
     // Update service (admin only)
@@ -159,7 +192,7 @@ class Service {
         const values = [];
         let paramIndex = 1;
         
-        const allowedFields = ['name', 'category', 'description', 'icon', 'base_price', 'price_type', 'is_active'];
+        const allowedFields = ['name', 'category', 'description', 'icon', 'base_price', 'price_type', 'is_active', 'image_url'];
         
         for (const [key, value] of Object.entries(serviceData)) {
             if (allowedFields.includes(key) && value !== undefined) {

@@ -79,6 +79,16 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Local Staging Camera Kit secrets (gitignored). Never commit tokens.
+def cameraKitLocalProps = new Properties()
+def cameraKitLocalFile = rootProject.file('camerakit.local.properties')
+if (cameraKitLocalFile.exists()) {
+    cameraKitLocalFile.withInputStream { cameraKitLocalProps.load(it) }
+}
+def cameraKitStagingToken = (cameraKitLocalProps.getProperty('SNAP_CAMERA_KIT_STAGING_API_TOKEN') ?: '').trim()
+def cameraKitDemoLensGroupId = (cameraKitLocalProps.getProperty('SNAP_CAMERA_KIT_DEMO_LENS_GROUP_ID') ?: '').trim()
+def cameraKitVersion = "1.50.0"
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -86,6 +96,16 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace 'com.apservices.aplive'
+    buildFeatures {
+        buildConfig true
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
     defaultConfig {
         applicationId 'com.apservices.aplive'
         minSdkVersion rootProject.ext.minSdkVersion
@@ -94,6 +114,10 @@ android {
         versionName "2.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        // Staging-only Camera Kit PoC — never Production.
+        buildConfigField "String", "SNAP_CAMERA_KIT_DEMO_LENS_GROUP_ID", "\"${cameraKitDemoLensGroupId.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        buildConfigField "boolean", "SNAP_CAMERA_KIT_CONFIGURED", "${!cameraKitStagingToken.isEmpty() && !cameraKitDemoLensGroupId.isEmpty()}"
+        manifestPlaceholders = [cameraKitApiToken: cameraKitStagingToken]
     }
     signingConfigs {
         debug {
@@ -183,6 +207,13 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Snap Camera Kit (isolated Android PoC) — current Maven Central 1.50.0
+    implementation "com.snap.camerakit:camerakit:$cameraKitVersion"
+    implementation "com.snap.camerakit:lenses-bundle:$cameraKitVersion"
+    implementation "com.snap.camerakit:support-camerax:$cameraKitVersion"
+    // Official Snap reference UI: front camera + lens carousel (real lens icons / apply UX)
+    implementation "com.snap.camerakit:support-camera-activity:$cameraKitVersion"
 }
 
 apply plugin: 'com.google.gms.google-services'

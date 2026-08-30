@@ -25,11 +25,20 @@ class Worker {
         try {
             const result = await db.query(query, values);
             
-            // Update user role to worker
-            await db.query(
-                'UPDATE users SET role = $1 WHERE id = $2',
-                ['worker', user_id]
-            );
+            // Update user role to worker — never demote staff / network / host / seller roles
+            const cur = await db.query('SELECT role FROM users WHERE id = $1', [user_id]);
+            const existingRole = String(cur.rows[0]?.role || '').toLowerCase();
+            const keepRole = new Set([
+                'admin', 'super_admin', 'founder', 'ceo',
+                'bdm', 'bd', 'agency', 'creator', 'host',
+                'coin_seller', 'seller', 'worker',
+            ]);
+            if (!keepRole.has(existingRole)) {
+                await db.query(
+                    'UPDATE users SET role = $1 WHERE id = $2',
+                    ['worker', user_id]
+                );
+            }
             
             return result.rows[0];
         } catch (error) {
@@ -108,7 +117,28 @@ class Worker {
             WHERE ws.worker_id = $1
         `;
         const result = await db.query(query, [workerId]);
-        return result.rows;
+        const rows = result.rows;
+        try {
+            const { ensureWorkerCustomServicesSchema } = require('../config/ensureWorkerCustomServicesSchema');
+            await ensureWorkerCustomServicesSchema();
+            const imgs = await db.query(
+                `SELECT service_id, url, position FROM worker_service_images
+                 WHERE worker_id = $1 ORDER BY position ASC, created_at ASC`,
+                [workerId]
+            );
+            const bySvc = new Map();
+            for (const row of imgs.rows) {
+                const list = bySvc.get(String(row.service_id)) || [];
+                list.push(row.url);
+                bySvc.set(String(row.service_id), list);
+            }
+            return rows.map((s) => ({
+                ...s,
+                images: bySvc.get(String(s.id)) || (s.image_url ? [s.image_url] : []),
+            }));
+        } catch (_e) {
+            return rows.map((s) => ({ ...s, images: s.image_url ? [s.image_url] : [] }));
+        }
     }
     
     // Update worker availability

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { newClientRequestId } from '../lib/clientRequestId';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ANIMATED_GIFTS, resolveGiftAnim } from '../config/giftAnims';
@@ -80,6 +81,7 @@ async function pushRecent(slug) {
 }
 
 function sheetTabOf(g) {
+  if (isLuckyGift(g)) return 'Lucky';
   if (g?.sheetTab) return g.sheetTab;
   const s = `${g?.slug || ''} ${g?.name || ''} ${g?.tag || ''} ${g?.category || ''}`.toLowerCase();
   const p = costOf(g);
@@ -87,7 +89,7 @@ function sheetTabOf(g) {
   if (hasAnim || /imperial|crystal rose|golden rose|firework|royal crown|jackpot|heart me|anim/.test(s)) {
     return 'Premium';
   }
-  if (/lucky|jackpot|dice|clover|booster|firework/.test(s)) return 'Lucky';
+  if (/lucky|jackpot|dice|booster|firework/.test(s)) return 'Lucky';
   if (/flower|rose|bloom|tulip|lily|bouquet/.test(s)) return 'Flowers';
   if (/privi|privilege|\bvip\b|crown|diamond watch/.test(s)) return 'VIP';
   if (/car|luxury|yacht|palace|lion|dragon|ferrari|lambo|koi/.test(s) || p >= 15000) return 'Luxury';
@@ -112,6 +114,12 @@ function mergeGiftList(gifts) {
   return Array.from(map.values());
 }
 
+export function isLuckyGift(g) {
+  if (!g) return false;
+  if (g.is_lucky || g.lucky) return true;
+  return String(g.category || '').toLowerCase() === 'lucky';
+}
+
 export function pickQuickGifts(gifts, n = 5) {
   const list = mergeGiftList(gifts)
     .slice()
@@ -132,6 +140,7 @@ export default function GiftSheet({
   onSelectRecipient,
   sending,
   error,
+  onOpenLuckyBoard,
 }) {
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState('Popular');
@@ -139,7 +148,11 @@ export default function GiftSheet({
   const [sendAll, setSendAll] = useState(false);
   const [localErr, setLocalErr] = useState('');
   const [recent, setRecent] = useState([]);
+  const [localSending, setLocalSending] = useState(false);
+  const sendingLock = useRef(false);
+  const pendingReq = useRef(null);
   const list = useMemo(() => mergeGiftList(gifts), [gifts]);
+  const busy = Boolean(sending || localSending);
 
   useEffect(() => {
     if (visible) {
@@ -170,9 +183,21 @@ export default function GiftSheet({
   }, [visible, tab, filtered, selected]);
 
   const current = selected && filtered.some((g) => giftKey(g) === giftKey(selected)) ? selected : filtered[0] || null;
+  const luckyMode = isLuckyGift(current);
+  const qtyOptions = useMemo(() => {
+    if (!luckyMode) return QTY;
+    const fromCatalog = current?.lucky_quantities;
+    return Array.isArray(fromCatalog) && fromCatalog.length ? fromCatalog : [1, 19, 49, 99, 299];
+  }, [luckyMode, current?.lucky_quantities]);
   const err = error || localErr;
 
-  const send = () => {
+  useEffect(() => {
+    if (!luckyMode) return;
+    if (!qtyOptions.includes(qty)) setQty(qtyOptions[0] || 1);
+  }, [luckyMode, qty, qtyOptions]);
+
+  const send = async () => {
+    if (sendingLock.current || busy) return;
     const g = current || filtered[0];
     if (!g) {
       setLocalErr('Pick a gift first');
@@ -184,25 +209,41 @@ export default function GiftSheet({
       return;
     }
     if (amount > Number(balance || 0)) {
-      setLocalErr(`Need ${amount.toLocaleString()} coins`);
+      setLocalErr(`Need ${amount.toLocaleString()} coins (you have ${Number(balance || 0).toLocaleString()}). Tap coins to recharge.`);
       return;
     }
-    pushRecent(giftKey(g));
-    if (!sendAll && recipients.length && !toUserId) {
-      const first = recipients[0];
-      onSelectRecipient?.(first);
-      onSend(g, qty, { sendAll: false, toUserId: first.id });
-      return;
-    }
+    sendingLock.current = true;
+    setLocalSending(true);
     setLocalErr('');
-    onSend(g, qty, { sendAll, toUserId });
+    pushRecent(giftKey(g));
+    try {
+      const intentKey = `${giftKey(g)}:${qty}:${sendAll ? 'all' : toUserId || ''}`;
+      if (!pendingReq.current || pendingReq.current.key !== intentKey) {
+        pendingReq.current = { key: intentKey, clientRequestId: newClientRequestId('gift') };
+      }
+      const clientRequestId = pendingReq.current.clientRequestId;
+      if (!sendAll && recipients.length && !toUserId) {
+        const first = recipients[0];
+        onSelectRecipient?.(first);
+        await Promise.resolve(onSend(g, qty, { sendAll: false, toUserId: first.id, clientRequestId }));
+        pendingReq.current = null;
+        return;
+      }
+      await Promise.resolve(onSend(g, qty, { sendAll, toUserId, clientRequestId }));
+      pendingReq.current = null;
+    } catch (e) {
+      setLocalErr(e?.message || 'Gift failed');
+    } finally {
+      sendingLock.current = false;
+      setLocalSending(false);
+    }
   };
 
   return (
-    <AnimatedSheet visible={visible} onClose={onClose} height="72%">
+    <AnimatedSheet visible={visible} onClose={onClose} height={luckyMode ? '82%' : '72%'}>
       <View style={styles.sheet}>
         <View style={styles.sendHead}>
-          <Text style={styles.sendLabel}>Send gift</Text>
+          <Text style={styles.sendLabel}>{luckyMode ? 'Lucky Gift' : 'Send gift'}</Text>
           {recipients.length > 1 ? (
             <Pressable onPress={() => setSendAll((v) => !v)} style={[styles.allToggle, sendAll && styles.allToggleOn]}>
               <Text style={[styles.allT, sendAll && styles.allTOn]}>ALL seats</Text>
@@ -221,6 +262,19 @@ export default function GiftSheet({
               );
             })}
           </ScrollView>
+        ) : null}
+        {luckyMode ? (
+          <View style={styles.luckyBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.luckyBannerH}>Lucky Gift</Text>
+              <Text style={styles.luckyBannerS}>Send it to get up to 1000 times coins back</Text>
+            </View>
+            {onOpenLuckyBoard ? (
+              <Pressable onPress={onOpenLuckyBoard} style={styles.rankBtn} hitSlop={8}>
+                <Text style={styles.rankBtnT}>🏆 Ranking</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
         <View style={styles.tabsWrap}>
           <ScrollView
@@ -250,7 +304,8 @@ export default function GiftSheet({
           {filtered.map((g) => {
             const on = Boolean(current) && giftKey(current) === giftKey(g) && giftKey(g) !== '';
             return (
-              <Pressable key={giftKey(g) || g.name} onPress={() => setSelected(g)} style={[styles.cell, on && styles.cellOn]}>
+              <Pressable key={giftKey(g) || g.name} onPress={() => !busy && setSelected(g)} disabled={busy} style={[styles.cell, on && styles.cellOn, luckyMode && on && styles.cellLuckyOn, busy && { opacity: 0.55 }]}>
+                {isLuckyGift(g) ? <Text style={styles.luckyBadge}>🍀</Text> : null}
                 <GiftThumb gift={g} size={64} float={false} />
                 <Text style={styles.gName} numberOfLines={1}>{g.name || g.title || 'Gift'}</Text>
                 <Text style={styles.gCost}>💎 {costOf(g).toLocaleString()}</Text>
@@ -265,17 +320,20 @@ export default function GiftSheet({
         <View style={styles.foot}>
           <Pressable onPress={onRecharge} style={styles.bal}>
             <Text style={styles.balT}>💎 {Number(balance || 0).toLocaleString()}</Text>
+            {luckyMode && current ? (
+              <Text style={styles.totalHint}>Need {(costOf(current) * qty).toLocaleString()}</Text>
+            ) : null}
           </Pressable>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.qtyRow}>
-            {QTY.map((n) => (
-              <Pressable key={n} onPress={() => setQty(n)} style={[styles.qty, qty === n && styles.qtyOn]}>
+            {qtyOptions.map((n) => (
+              <Pressable key={n} onPress={() => !busy && setQty(n)} style={[styles.qty, qty === n && styles.qtyOn]}>
                 <Text style={[styles.qtyT, qty === n && styles.qtyTOn]}>{n}</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable onPress={send} disabled={sending} style={styles.sendWrap} hitSlop={8}>
-            <LinearGradient colors={['#FF4FA0', '#FF2D86']} style={[styles.send, sending && { opacity: 0.6 }]}>
-              <Text style={styles.sendT} numberOfLines={1}>{sending ? '…' : 'Send'}</Text>
+          <Pressable onPress={send} disabled={busy} style={styles.sendWrap} hitSlop={8}>
+            <LinearGradient colors={['#FF4FA0', '#FF2D86']} style={[styles.send, busy && { opacity: 0.6 }]}>
+              <Text style={styles.sendT} numberOfLines={1}>{busy ? 'Sending…' : 'Send'}</Text>
             </LinearGradient>
           </Pressable>
         </View>
@@ -341,8 +399,29 @@ const styles = StyleSheet.create({
   balT: { color: '#F9A8D4', fontWeight: '800', fontSize: 12 },
   gridScroll: { flex: 1, minHeight: 160 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, paddingBottom: 12 },
-  cell: { width: '25%', alignItems: 'center', paddingVertical: 10, borderRadius: 12 },
+  cell: { width: '25%', alignItems: 'center', paddingVertical: 10, borderRadius: 12, position: 'relative' },
   cellOn: { backgroundColor: 'rgba(255,79,160,0.18)', borderWidth: 1, borderColor: '#FF4FA0' },
+  cellLuckyOn: { borderColor: '#5EEAD4', backgroundColor: 'rgba(45,212,191,0.12)' },
+  luckyBadge: { position: 'absolute', top: 4, right: 10, zIndex: 2, fontSize: 11 },
+  luckyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16,185,129,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(94,234,212,0.35)',
+  },
+  luckyBannerH: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  luckyBannerS: { color: 'rgba(255,255,255,0.75)', fontWeight: '600', fontSize: 11, marginTop: 2 },
+  rankBtn: { backgroundColor: 'rgba(245,215,110,0.2)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  rankBtnT: { color: '#F5D76E', fontWeight: '800', fontSize: 11 },
+  totalHint: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '700', marginTop: 2 },
+  qty: { minWidth: 40, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
   gName: {
     fontSize: 12,
     fontWeight: '800',
@@ -365,7 +444,6 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.08)',
   },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 4 },
-  qty: { minWidth: 34, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
   qtyOn: { backgroundColor: '#fff' },
   qtyT: { fontWeight: '800', color: 'rgba(255,255,255,0.7)', fontSize: 12 },
   qtyTOn: { color: '#111' },

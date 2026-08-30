@@ -1,14 +1,15 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../config/theme';
 import { mediaUrl } from '../../config/api';
 import { Avatar, Card, EmptyState, ErrorBanner, Field, GoldButton, Loading, OutlineButton, PillTab } from '../../components/ui';
 import CoupleRing from '../../components/CoupleRing';
 import { CreamPage } from '../../components/creamChrome';
-import { SVIP_PERKS, SVIP_TIERS } from '../../config/storeCatalog';
 import { RING_SKINS } from '../../config/rings';
 import { parseCpBond } from '../../lib/cpBond';
 
@@ -116,106 +117,323 @@ export function VisitorsScreen({ navigation }) {
 }
 
 export function SvipScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { api, user, displayName } = useAuth();
   const [data, setData] = useState(null);
-  const [tier, setTier] = useState(0);
+  const [activeGroup, setActiveGroup] = useState('1-2');
   const [error, setError] = useState('');
-  useFocusEffect(
-    useCallback(() => {
-      api.get('/svip/home').then((r) => setData(api.unwrap(r))).catch((e) => setError(e.message));
-    }, [api])
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const r = await api.get('/svip/home');
+      const d = api.unwrap(r) || {};
+      setData(d);
+      const lv = Number(d.level) || 0;
+      const g = (d.tierGroups || []).find((x) => (x.levels || []).includes(lv));
+      if (g?.id) setActiveGroup(g.id);
+      else if (d.tierGroups?.[0]?.id) setActiveGroup(d.tierGroups[0].id);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const level = Number(data?.level) || 0;
+  const points = Number(data?.points) || 0;
+  const tierGroups = data?.tierGroups || [];
+  const viewGroup = tierGroups.find((g) => g.id === activeGroup) || tierGroups[0];
+  const viewLevel = viewGroup ? Math.max(...(viewGroup.levels || [2])) : 2;
+  const identification = (data?.identification || []).filter(
+    (x) => Number(x.minLevel) <= viewLevel + 1 || Number(x.minLevel) <= viewLevel
   );
-  const points = Number(data?.points || data?.svipPoints || 0);
-  const need = Number(data?.pointsToNext || Math.max(0, 3000000 - points) || 1360000);
-  const level = Number(data?.level || data?.svipLevel || 0);
-  const perks = Array.isArray(data?.privileges || data?.perks) && (data.privileges || data.perks).length
-    ? (data.privileges || data.perks)
-    : SVIP_PERKS;
+  const privileges = data?.privileges || [];
+  const idUnlocked = identification.filter((x) => level >= Number(x.minLevel)).length;
+  const privUnlocked = privileges.filter((x) => level >= Number(x.minLevel)).length;
+  const up = data?.upgradeProgress || data?.progress || {};
+  const maint = data?.maintenance;
+  const emblemLabel = level > 0 ? `SVIP ${level}` : 'SVIP';
+
+  const iconOf = (fa) => {
+    const map = {
+      'fa-tag': 'pricetag',
+      'fa-award': 'ribbon',
+      'fa-door-open': 'log-in',
+      'fa-id-card': 'card',
+      'fa-circle-notch': 'ellipse',
+      'fa-comment-dots': 'chatbubble-ellipses',
+      'fa-medal': 'trophy',
+      'fa-car-side': 'car',
+      'fa-palette': 'color-palette',
+      'fa-users': 'people',
+      'fa-gift': 'gift',
+      'fa-clock': 'time',
+      'fa-smile': 'happy',
+      'fa-shield-alt': 'shield',
+      'fa-rocket': 'rocket',
+      'fa-user-secret': 'eye-off',
+      'fa-eye-slash': 'eye-off',
+      'fa-user-ninja': 'flash',
+      'fa-user-plus': 'person-add',
+      'fa-bullhorn': 'megaphone',
+      'fa-headset': 'headset',
+      'fa-star': 'star',
+      'fa-ban': 'ban',
+      'fa-home': 'home',
+      'fa-hashtag': 'text',
+      'fa-comment-slash': 'chatbubbles',
+    };
+    return map[fa] || 'sparkles';
+  };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#2a0536' }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        <ErrorBanner message={error} />
-        <LinearGradient colors={['#4a044e', '#2a0536']} style={styles.svipStage}>
-          <Text style={styles.svipBrand}>AP LIVE SVIP</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingHorizontal: 12 }}>
-            {SVIP_TIERS.map((t, i) => (
-              <Pressable key={t} onPress={() => setTier(i)}>
-                <Text style={[styles.svipTier, tier === i && styles.svipTierOn]}>{t}</Text>
-                {tier === i ? <View style={styles.svipTierLine} /> : null}
-              </Pressable>
-            ))}
-          </ScrollView>
-          <Text style={styles.svipCat}>🐱</Text>
-          <Text style={styles.svipPlate}>SVIP</Text>
-        </LinearGradient>
-        <View style={styles.ident}>
-          <Text style={styles.identT}>✦  SVIP Identification  ✦</Text>
-          <Text style={styles.identN}>{Math.min(perks.length, 9)}/9</Text>
-        </View>
-        <View style={styles.perkGrid2}>
-          {(perks.slice ? perks.slice(0, 9) : []).map((p, i) => {
-            const title = typeof p === 'string' ? p : p.title || p.name;
-            const emoji = p.emoji || ['🏷️', '🐱', '🚪'][i] || '✨';
+    <View style={[svipStyles.root, { paddingTop: insets.top }]}>
+      <View style={svipStyles.header}>
+        <Pressable onPress={() => navigation.goBack()} style={svipStyles.iconBtn} hitSlop={8}>
+          <Ionicons name="chevron-back" size={20} color="#FBBF24" />
+        </Pressable>
+        <Text style={svipStyles.title}>AP SVIP</Text>
+        <Pressable onPress={() => navigation.navigate('SvipSettings')} style={svipStyles.iconBtn} hitSlop={8}>
+          <Ionicons name="diamond" size={18} color="#FBBF24" />
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('SvipIntro')} style={svipStyles.iconBtn} hitSlop={8}>
+          <Ionicons name="help-circle-outline" size={20} color="#FBBF24" />
+        </Pressable>
+      </View>
+
+      {loading && !data ? <Loading /> : null}
+      <ErrorBanner message={error} onRetry={load} />
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={svipStyles.tierTabs}>
+          {tierGroups.map((g) => {
+            const on = g.id === activeGroup;
             return (
-              <View key={title + i} style={styles.svipCard}>
-                {p.play ? <Text style={styles.play}>▶</Text> : null}
-                <Text style={{ fontSize: 28, textAlign: 'center' }}>{emoji}</Text>
-                <Text style={styles.svipCardT}>{title}</Text>
+              <Pressable key={g.id} onPress={() => setActiveGroup(g.id)} style={svipStyles.tierTab}>
+                <Text style={[svipStyles.tierTabT, on && svipStyles.tierTabTOn]}>{g.label}</Text>
+                {on ? <View style={svipStyles.tierUnderline} /> : null}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <LinearGradient colors={['#2E1065', '#1A0A24', '#120818']} style={svipStyles.hero}>
+          <LinearGradient colors={['#6D28D9', '#4C1D95', '#312E81']} style={svipStyles.emblem}>
+            <Ionicons name="diamond" size={28} color="#FBBF24" />
+            <Text style={svipStyles.emblemLabel}>{emblemLabel}</Text>
+          </LinearGradient>
+          {data?.pointsFormatted ? (
+            <Text style={svipStyles.heroPts}>{data.pointsFormatted} SVIP points</Text>
+          ) : null}
+        </LinearGradient>
+
+        {maint && data?.isSvip ? (
+          <View style={[svipStyles.maintCard, maint.isMet && svipStyles.maintMet]}>
+            <View style={svipStyles.maintHead}>
+              <Ionicons name="hourglass-outline" size={16} color="#FBBF24" />
+              <Text style={svipStyles.maintDays}>{maint.daysLabel || `${maint.daysRemaining} days left`}</Text>
+            </View>
+            <Text style={svipStyles.maintSummary}>{maint.summary}</Text>
+            <View style={svipStyles.progressTrack}>
+              <View style={[svipStyles.progressFill, { width: `${Math.min(100, Number(maint.progressPercent) || 0)}%` }]} />
+            </View>
+            <Text style={svipStyles.maintProgress}>
+              {maint.pointsEarnedFormatted || 0} / {maint.pointsRequiredFormatted || 0}
+            </Text>
+            <Text style={svipStyles.maintDrop}>{maint.dropLabel}</Text>
+          </View>
+        ) : null}
+
+        <View style={svipStyles.sectionHead}>
+          <Text style={svipStyles.wing}>✦</Text>
+          <Text style={svipStyles.sectionTitle}>SVIP Identification</Text>
+          <Text style={svipStyles.wing}>✦</Text>
+        </View>
+        <Text style={svipStyles.sectionCount}>{idUnlocked}/{identification.length || 0}</Text>
+        <View style={svipStyles.grid}>
+          {identification.map((item) => {
+            const locked = level < Number(item.minLevel);
+            return (
+              <View key={item.id} style={[svipStyles.card, locked && svipStyles.cardLocked]}>
+                {item.animated ? (
+                  <View style={svipStyles.playBadge}><Ionicons name="play" size={10} color="#120818" /></View>
+                ) : null}
+                <Ionicons name={iconOf(item.icon)} size={26} color={locked ? '#6B7280' : '#FBBF24'} />
+                <Text style={[svipStyles.cardName, locked && { color: '#9CA3AF' }]} numberOfLines={2}>{item.name}</Text>
               </View>
             );
           })}
         </View>
-      </ScrollView>
-      <View style={styles.svipBar}>
-        <Avatar uri={mediaUrl(user?.profile_pic)} name={displayName} size={40} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.svipBarT}>{level ? `You are SVIP ${level}` : 'You are not an SVIP yet'}</Text>
-          <Text style={styles.svipBarS}>{points.toLocaleString()} / 3.0M</Text>
+
+        <View style={svipStyles.sectionHead}>
+          <Text style={svipStyles.wing}>✦</Text>
+          <Text style={svipStyles.sectionTitle}>Exclusive Privileges</Text>
+          <Text style={svipStyles.wing}>✦</Text>
         </View>
-        <Pressable onPress={() => navigation.navigate('Recharge')} style={styles.levelUp}>
-          <Text style={styles.levelUpT}>Level Up</Text>
-        </Pressable>
+        <Text style={svipStyles.sectionCount}>{privUnlocked}/{privileges.length || 0}</Text>
+        <View style={svipStyles.privGrid}>
+          {privileges.map((item) => {
+            const locked = level < Number(item.minLevel);
+            return (
+              <Pressable
+                key={item.id}
+                disabled={locked}
+                onPress={() => {
+                  if (item.id === 'visitors') navigation.navigate('Visitors');
+                  else if (item.id === 'svip_gifts') navigation.navigate('Store');
+                }}
+                style={[svipStyles.privItem, locked && svipStyles.cardLocked]}
+              >
+                <Text style={svipStyles.privBadge}>SVIP {item.minLevel}</Text>
+                <Ionicons name={iconOf(item.icon)} size={22} color={locked ? '#6B7280' : '#FBBF24'} />
+                <Text style={[svipStyles.privName, locked && { color: '#9CA3AF' }]} numberOfLines={2}>{item.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      <Pressable style={[svipStyles.fab, { bottom: 88 + insets.bottom }]} onPress={() => navigation.navigate('Recharge')}>
+        <Text style={svipStyles.fabT}>Task</Text>
+      </Pressable>
+
+      <View style={[svipStyles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <Avatar uri={mediaUrl(data?.user?.profilePic || user?.profile_pic)} name={data?.user?.name || displayName} size={36} />
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={svipStyles.footerStatus}>
+            {data?.isSvip ? `You are ${data.levelLabel}` : 'You are not an SVIP yet'}
+          </Text>
+          {data?.upgradeHint ? <Text style={svipStyles.footerHint} numberOfLines={2}>{data.upgradeHint}</Text> : null}
+        </View>
+        <View style={svipStyles.footerUpgrade}>
+          <Text style={svipStyles.progressText}>
+            {up.currentFormatted || formatCompactLocal(points)} / {up.maxFormatted || '3.0M'}
+          </Text>
+          <View style={svipStyles.progressTrackSm}>
+            <View style={[svipStyles.progressFill, { width: `${Math.min(100, Number(up.percent) || 0)}%` }]} />
+          </View>
+          <Pressable onPress={() => navigation.navigate('Recharge')} style={svipStyles.levelUp}>
+            <Text style={svipStyles.levelUpT}>Level Up</Text>
+          </Pressable>
+        </View>
       </View>
-      <Text style={styles.need}>Need {need.toLocaleString()} points to upgrade the SVIP {Math.max(1, level + 1)}.</Text>
     </View>
   );
 }
 
-export function SvipSettingsScreen() {
+function formatCompactLocal(n) {
+  const v = Number(n || 0);
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1).replace(/\.0$/, '')}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(Math.round(v));
+}
+
+export function SvipSettingsScreen({ navigation }) {
   const { api } = useAuth();
   const [settings, setSettings] = useState({});
+  const [toggles, setToggles] = useState([]);
+  const [level, setLevel] = useState(0);
+  const [error, setError] = useState('');
+
   useFocusEffect(
     useCallback(() => {
-      api.get('/svip/settings').then((r) => setSettings(api.unwrap(r)?.settings || api.unwrap(r) || {})).catch(() => {});
+      api.get('/svip/settings').then((r) => {
+        const d = api.unwrap(r) || {};
+        setSettings(d.settings || {});
+        setToggles(Array.isArray(d.privileges) ? d.privileges : []);
+        setLevel(Number(d.level) || 0);
+      }).catch((e) => setError(e.message));
     }, [api])
   );
+
   const toggle = async (key) => {
     const next = { ...settings, [key]: !settings[key] };
     setSettings(next);
-    try { await api.post('/svip/settings', next); } catch (_e) {}
+    try {
+      await api.post('/svip/settings', { settings: next });
+    } catch (e) {
+      setError(e.message);
+    }
   };
+
   return (
-    <ScrollView style={styles.root}>
-      <Card>
-        <Text style={styles.h}>Visit anonymously</Text>
-        <GoldButton title={settings.anonymous_visit || settings.invisible ? 'On' : 'Off'} onPress={() => toggle('anonymous_visit')} />
-      </Card>
-    </ScrollView>
+    <CreamPage title="Privilege settings" navigation={navigation}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        <ErrorBanner message={error} />
+        <Text style={{ color: '#8B6D3B', marginBottom: 12, lineHeight: 20 }}>
+          Toggle privileges unlocked by your SVIP level ({level || 0}).
+        </Text>
+        {(toggles.length ? toggles : [
+          { id: 'anon_visitor', name: 'Anonymous Visitor', minLevel: 5 },
+          { id: 'block_strangers', name: 'Block messages from strangers', minLevel: 1 },
+        ]).map((p) => {
+          const locked = level < Number(p.minLevel || 0);
+          const on = Boolean(settings[p.id]);
+          return (
+            <Pressable
+              key={p.id}
+              disabled={locked}
+              onPress={() => toggle(p.id)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#fff',
+                borderRadius: 14,
+                padding: 14,
+                marginBottom: 10,
+                opacity: locked ? 0.55 : 1,
+                borderWidth: 1,
+                borderColor: 'rgba(201,162,39,0.2)',
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '800', color: '#5D4037' }}>{p.name}</Text>
+                <Text style={{ color: '#8B6D3B', fontSize: 12, marginTop: 2 }}>SVIP {p.minLevel}+</Text>
+              </View>
+              <Text style={{ fontWeight: '900', color: on ? '#7C3AED' : '#A8A29E' }}>{locked ? 'Locked' : on ? 'On' : 'Off'}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </CreamPage>
   );
 }
 
-export function SvipIntroScreen() {
+export function SvipIntroScreen({ navigation }) {
   const { api } = useAuth();
   const [data, setData] = useState(null);
-  useFocusEffect(useCallback(() => { api.get('/svip/intro', null, { auth: false }).then((r) => setData(api.unwrap(r))).catch(() => setData({})); }, [api]));
+  useFocusEffect(useCallback(() => {
+    api.get('/svip/intro', null, { auth: false }).then((r) => setData(api.unwrap(r))).catch(() => setData({}));
+  }, [api]));
+
   return (
-    <ScrollView style={styles.root}>
-      <Card>
-        <Text style={styles.h}>SVIP Introduction</Text>
-        <Text style={styles.body}>{data?.body || data?.html || 'SVIP unlocks anonymous visits, extra gifts, and profile privileges as you recharge.'}</Text>
-      </Card>
-    </ScrollView>
+    <CreamPage title="SVIP introduction" navigation={navigation}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+        <Card>
+          <Text style={styles.h}>How SVIP points work</Text>
+          <Text style={styles.body}>
+            {data?.pointRule ||
+              '1 purchased diamond (coin) = 1 SVIP point from approved recharges and coin-seller purchases.'}
+          </Text>
+        </Card>
+        <Card>
+          <Text style={styles.h}>Validity</Text>
+          {(data?.validityRules || [
+            'Each SVIP level has a maintenance period. Recharge the required amount during this period to keep your level.',
+            'If maintenance fails, your level drops by one.',
+          ]).map((line) => (
+            <Text key={line} style={[styles.body, { marginBottom: 8 }]}>• {line}</Text>
+          ))}
+        </Card>
+        <GoldButton title="Open AP SVIP" onPress={() => navigation.navigate('Svip')} />
+      </ScrollView>
+    </CreamPage>
   );
 }
 
@@ -510,4 +728,143 @@ const styles = StyleSheet.create({
   levelUp: { backgroundColor: '#fbbf24', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10 },
   levelUpT: { color: '#1c1917', fontWeight: '800' },
   need: { color: '#fde68a', textAlign: 'center', paddingBottom: 10, backgroundColor: '#1e0430', fontSize: 12 },
+});
+
+const svipStyles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#120818' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(251,191,36,0.15)',
+    backgroundColor: '#1A0A24',
+  },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '800',
+    fontStyle: 'italic',
+    color: '#FBBF24',
+  },
+  tierTabs: { paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  tierTab: { paddingHorizontal: 12, paddingVertical: 8, marginRight: 4 },
+  tierTabT: { color: '#A78BFA', fontWeight: '600', fontSize: 13 },
+  tierTabTOn: { color: '#FBBF24', fontWeight: '800' },
+  tierUnderline: { height: 2, backgroundColor: '#FBBF24', marginTop: 6, borderRadius: 2 },
+  hero: { marginHorizontal: 16, marginTop: 8, borderRadius: 20, paddingVertical: 28, alignItems: 'center' },
+  emblem: {
+    width: 110,
+    height: 110,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(251,191,36,0.45)',
+  },
+  emblemLabel: { color: '#FDE68A', fontWeight: '900', marginTop: 6, fontSize: 16 },
+  heroPts: { color: '#C4B5FD', marginTop: 12, fontWeight: '700' },
+  maintCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    backgroundColor: '#1A1028',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.28)',
+  },
+  maintMet: { borderColor: 'rgba(34,197,94,0.45)' },
+  maintHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  maintDays: { color: '#FBBF24', fontWeight: '800' },
+  maintSummary: { color: '#DDD6FE', fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  maintProgress: { color: '#FDE68A', fontSize: 12, marginTop: 6, fontWeight: '700' },
+  maintDrop: { color: '#A78BFA', fontSize: 11, marginTop: 6 },
+  progressTrack: { height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  progressTrackSm: { height: 5, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)', overflow: 'hidden', marginVertical: 4 },
+  progressFill: { height: '100%', backgroundColor: '#FBBF24', borderRadius: 999 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 },
+  wing: { color: '#FBBF24', fontWeight: '800' },
+  sectionTitle: { color: '#F5F3FF', fontWeight: '800', fontSize: 14 },
+  sectionCount: { textAlign: 'center', color: '#A78BFA', marginTop: 4, marginBottom: 8, fontWeight: '700' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10 },
+  card: {
+    width: '30%',
+    margin: '1.5%',
+    minHeight: 104,
+    borderRadius: 14,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2E1065',
+    borderWidth: 1.5,
+    borderColor: 'rgba(251,191,36,0.4)',
+  },
+  cardLocked: { opacity: 0.45 },
+  playBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FBBF24',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardName: { color: '#fff', textAlign: 'center', marginTop: 8, fontWeight: '700', fontSize: 11 },
+  privGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 10, paddingBottom: 20 },
+  privItem: {
+    width: '30%',
+    margin: '1.5%',
+    minHeight: 100,
+    borderRadius: 14,
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E1B4B',
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.28)',
+  },
+  privBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FBBF24',
+  },
+  privName: { color: '#EDE9FE', textAlign: 'center', marginTop: 8, fontWeight: '700', fontSize: 11 },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    backgroundColor: '#FBBF24',
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    zIndex: 20,
+  },
+  fabT: { color: '#1C1917', fontWeight: '900' },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    backgroundColor: '#1A1028',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(251,191,36,0.2)',
+  },
+  footerStatus: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  footerHint: { color: '#C4B5FD', fontSize: 11, marginTop: 2 },
+  footerUpgrade: { alignItems: 'flex-end', minWidth: 110 },
+  progressText: { color: '#FDE68A', fontSize: 11, fontWeight: '700' },
+  levelUp: { backgroundColor: '#FBBF24', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 4 },
+  levelUpT: { color: '#1C1917', fontWeight: '900', fontSize: 12 },
 });

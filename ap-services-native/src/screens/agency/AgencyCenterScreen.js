@@ -293,7 +293,11 @@ export default function AgencyCenterScreen({ navigation, route }) {
             <Avatar uri={mediaUrl(a.profile_pic || a.ownerPic)} name={a.name || a.owner_name || 'Agency'} size={44} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.listName}>{a.name || a.agency_name || 'Agency'}</Text>
-              <Text style={styles.meta}>Owner {a.owner_name || a.owner || '—'} · Hosts {a.hostCount || a.hosts || 0}</Text>
+              <Text style={styles.meta}>
+                Owner {(typeof a.owner === 'object' ? a.owner?.name : a.owner) || a.owner_name || '—'}
+                {' · Hosts '}
+                {Array.isArray(a.children) ? a.children.length : (a.hostCount ?? a.hosts ?? 0)}
+              </Text>
             </View>
           </View>
         ))}
@@ -398,6 +402,15 @@ export default function AgencyCenterScreen({ navigation, route }) {
       </View>
       <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor="#7C3AED" />} contentContainerStyle={{ paddingBottom: 48 }}>
         <ErrorBanner message={error} onRetry={load} />
+        {d.staffPreview || !agency?.id ? (
+          <View style={{ marginHorizontal: 14, marginBottom: 10, backgroundColor: '#EEF2FF', borderRadius: 12, padding: 12 }}>
+            <Text style={{ color: '#3730A3', fontWeight: '700', fontSize: 13 }}>
+              {d.staffPreview
+                ? 'Admin preview — no agency is linked to this account yet. Assign yourself Agency role or open a specific agency owner.'
+                : 'Agency profile is loading or not linked yet. Pull to refresh after your role is set to Agency.'}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.hero}>
           <Avatar uri={mediaUrl(user?.profile_pic)} name={displayName} size={64} />
           <View style={{ flex: 1, marginLeft: 12 }}>

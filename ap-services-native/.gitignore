@@ -15,6 +15,7 @@ ios/
 *.orig.*
 web-build/
 .env
+android/camerakit.local.properties
 npm-debug.*
 .DS_Store
 apk/

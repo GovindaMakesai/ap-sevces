@@ -403,7 +403,7 @@ body.social-square-page #social-banner-slider {
   margin: 4px 10px 10px !important;
   height: auto !important;
   overflow: hidden !important;
-  background: #f6ecd4 !important;
+  background: transparent !important;
   border-radius: 12px !important;
 }
 body.social-explore-page .social-banner-scroller,
@@ -453,7 +453,7 @@ body.social-square-page .social-banner-slide--image .social-banner,
 body.social-explore-page .social-banner--image,
 body.social-square-page .social-banner--image {
   overflow: hidden !important;
-  background: #f6ecd4 !important;
+  background: transparent !important;
 }
 body.social-explore-page .social-banner-slide:not(.social-banner-slide--image),
 body.social-square-page .social-banner-slide:not(.social-banner-slide--image) {

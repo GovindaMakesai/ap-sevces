@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DURATION_MS = 5000;
@@ -7,46 +7,43 @@ const DURATION_MS = 5000;
 export default function PromoLaunchOverlay({ onDone }) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(true);
-  const opacity = useRef(new Animated.Value(1)).current;
-  const progress = useRef(new Animated.Value(0)).current;
+  const [secs, setSecs] = useState(5);
 
   const dismiss = useCallback(() => {
-    Animated.timing(opacity, { toValue: 0, duration: 320, useNativeDriver: true }).start(() => {
-      setVisible(false);
-      onDone?.();
-    });
-  }, [onDone, opacity]);
+    setVisible(false);
+    onDone?.();
+  }, [onDone]);
 
   useEffect(() => {
-    Animated.timing(progress, { toValue: 1, duration: DURATION_MS, useNativeDriver: false }).start();
+    const tick = setInterval(() => {
+      setSecs((s) => Math.max(0, s - 1));
+    }, 1000);
     const t = setTimeout(dismiss, DURATION_MS);
-    return () => clearTimeout(t);
-  }, [dismiss, progress]);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(t);
+    };
+  }, [dismiss]);
 
   if (!visible) return null;
 
-  const barWidth = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
-
   return (
-    <Animated.View style={[styles.root, { opacity, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.imageWrap}>
-        <Image
-          source={require('../../assets/promos/reality-show-antakshari.jpg')}
-          style={styles.image}
-          resizeMode="contain"
-          accessibilityLabel="1st Reality Show Antakshari promotion"
-        />
-      </View>
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, { width: barWidth }]} />
-      </View>
-      <View style={styles.bar}>
-        <Text style={styles.hint}>1st Reality Show · Sep 1–7</Text>
-        <Pressable style={styles.skipBtn} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Skip promotion">
-          <Text style={styles.skipText}>Skip</Text>
-        </Pressable>
-      </View>
-    </Animated.View>
+    <View style={styles.root} accessibilityViewIsModal>
+      <Image
+        source={require('../../assets/promos/reality-show-antakshari.jpg')}
+        style={styles.image}
+        resizeMode="cover"
+        accessibilityLabel="1st Reality Show Antakshari promotion"
+      />
+      <Pressable
+        style={[styles.skipBtn, { top: insets.top + 10, right: Math.max(12, insets.right + 8) }]}
+        onPress={dismiss}
+        accessibilityRole="button"
+        accessibilityLabel="Skip promotion"
+      >
+        <Text style={styles.skipText}>{secs > 0 ? `${secs}s skip` : 'skip'}</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -54,51 +51,25 @@ const styles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 99999,
-    backgroundColor: '#1a0a14',
+    backgroundColor: '#120810',
     elevation: 99,
   },
-  imageWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   image: {
+    ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
   },
-  progressTrack: {
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    marginHorizontal: 0,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#f5d77a',
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-  },
-  hint: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 12,
-  },
   skipBtn: {
+    position: 'absolute',
     borderRadius: 999,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    backgroundColor: '#e8b84a',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   skipText: {
-    color: '#3b1f12',
+    color: '#fff',
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
 });

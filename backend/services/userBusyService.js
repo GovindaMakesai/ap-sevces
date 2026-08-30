@@ -59,40 +59,66 @@ async function queryLivePresence(userId, client = db) {
 }
 
 async function queryActivePk(userId, client = db) {
+  /**
+   * Only treat the user as "in PK" when they are still present in the live room
+   * tied to that battle (membership open, or actively hosting that channel).
+   * Stale pk_participants / abandoned pending battles must NOT block Voice/Video Match.
+   */
   const participant = await client.query(
     `SELECT b.id, b.channel, b.status
      FROM pk_participants pp
      JOIN pk_battles b ON b.id = pp.battle_id
-     WHERE pp.user_id = $1 AND b.status IN ('pending', 'active')
+     WHERE pp.user_id = $1
+       AND b.status IN ('pending', 'active')
+       AND (
+         b.status = 'active'
+         OR b.created_at > NOW() - INTERVAL '30 minutes'
+       )
+       AND (
+         EXISTS (
+           SELECT 1
+           FROM live_rooms r
+           JOIN live_room_members m ON m.live_room_id = r.id
+           WHERE r.status = 'active'
+             AND m.user_id = $1
+             AND m.left_at IS NULL
+             AND (r.channel = b.channel OR (b.live_room_id IS NOT NULL AND r.id = b.live_room_id))
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM live_rooms r
+           JOIN live_room_members m ON m.live_room_id = r.id
+           WHERE r.status = 'active'
+             AND r.host_user_id = $1
+             AND m.user_id = $1
+             AND m.left_at IS NULL
+             AND (r.channel = b.channel OR (b.live_room_id IS NOT NULL AND r.id = b.live_room_id))
+         )
+       )
      ORDER BY b.created_at DESC
      LIMIT 1`,
     [userId]
   );
   if (participant.rows[0]) return participant.rows[0];
 
+  /* Host still inside their active room that has a PK on this channel */
   const hostPk = await client.query(
     `SELECT b.id, b.channel, b.status
      FROM live_rooms r
-     JOIN pk_battles b ON b.channel = r.channel AND b.status IN ('pending', 'active')
+     JOIN live_room_members m ON m.live_room_id = r.id
+       AND m.user_id = $1 AND m.left_at IS NULL
+     JOIN pk_battles b ON b.status IN ('pending', 'active')
+       AND (b.channel = r.channel OR (b.live_room_id IS NOT NULL AND b.live_room_id = r.id))
+       AND (
+         b.status = 'active'
+         OR b.created_at > NOW() - INTERVAL '30 minutes'
+       )
      WHERE r.host_user_id = $1 AND r.status = 'active'
      ORDER BY b.created_at DESC
      LIMIT 1`,
     [userId]
   );
-  if (hostPk.rows[0]) return hostPk.rows[0];
-
-  const linkedPk = await client.query(
-    `SELECT b.id, b.channel, b.status
-     FROM live_room_members m
-     JOIN live_rooms r ON r.id = m.live_room_id
-     JOIN pk_battles b ON b.status IN ('pending', 'active')
-       AND (b.channel = r.channel OR r.pk_status IN ('pending', 'active'))
-     WHERE m.user_id = $1 AND m.left_at IS NULL AND r.status = 'active'
-     ORDER BY b.created_at DESC
-     LIMIT 1`,
-    [userId]
-  );
-  return linkedPk.rows[0] || null;
+  return hostPk.rows[0] || null;
 }
 
 async function queryActiveMatch(userId, client = db) {

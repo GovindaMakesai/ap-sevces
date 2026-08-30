@@ -52,4 +52,15 @@ router.put('/availability',
     workerController.updateAvailability
 );
 
+router.post(
+    '/custom-service',
+    verifyToken,
+    upload.fields([
+        { name: 'photos', maxCount: 6 },
+        { name: 'images', maxCount: 6 },
+        { name: 'photo', maxCount: 6 },
+    ]),
+    workerController.createCustomService
+);
+
 module.exports = router;

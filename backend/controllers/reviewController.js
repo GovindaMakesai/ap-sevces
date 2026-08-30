@@ -154,7 +154,7 @@ exports.getReviewByBooking = async (req, res) => {
         const booking = await Booking.getById(bookingId);
         if (booking.customer_id !== req.userId && 
             booking.worker_user_id !== req.userId && 
-            req.userRole !== 'admin') {
+            !['admin','super_admin','founder','ceo'].includes(String(req.userRole||'').toLowerCase())) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to view this review'

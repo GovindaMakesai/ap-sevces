@@ -20,6 +20,24 @@ import { Avatar, EmptyState, ErrorBanner, Field, Loading } from '../../component
 import { indianGroup } from '../../lib/format.js';
 import { formatUserDisplayId } from '../../lib/roles';
 
+function ownerLabel(owner, fallback = '—') {
+  if (!owner) return fallback;
+  if (typeof owner === 'string') return owner;
+  if (typeof owner === 'object') {
+    return owner.name || owner.displayName || formatUserDisplayId(owner) || fallback;
+  }
+  return String(owner);
+}
+
+function hostCountOf(a) {
+  if (a?.hostCount != null) return Number(a.hostCount) || 0;
+  if (Array.isArray(a?.children)) return a.children.length;
+  const h = a?.hosts;
+  if (Array.isArray(h)) return h.length;
+  if (typeof h === 'number') return h;
+  return Number(a?.host_count || 0) || 0;
+}
+
 export function BdCenterScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { api, user, displayName, refreshSession, logout, refreshUser } = useAuth();
@@ -224,7 +242,7 @@ export function BdCenterScreen({ navigation }) {
             <Avatar uri={mediaUrl(a.profile_pic || a.ownerPic)} name={a.name || a.owner_name || 'Agency'} size={40} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.cardName}>{a.name || a.agency_name || 'Agency'}</Text>
-              <Text style={styles.meta}>Hosts {a.hostCount || a.hosts || 0} · {a.owner_name || a.owner || ''}</Text>
+              <Text style={styles.meta}>Hosts {hostCountOf(a)} · {ownerLabel(a.owner_name || a.owner, '')}</Text>
             </View>
             <Text style={styles.score}>{indianGroup(a.score || a.revenue || a.coins || 0)}</Text>
           </View>
@@ -332,7 +350,7 @@ export function HierarchyScreen({ navigation }) {
                       <Text style={styles.cardName}>{a.name || 'Agency'}</Text>
                       <View style={styles.tagAg}><Text style={styles.tagTxt}>Agency</Text></View>
                     </View>
-                    <Text style={styles.meta}>Owner {a.owner_name || a.owner || '—'} · tap for hosts</Text>
+                    <Text style={styles.meta}>Owner {ownerLabel(a.owner_name || a.owner)} · tap for hosts</Text>
                     {openAg[agId] ? (
                       hosts.length ? hosts.map((h, hi) => (
                         <Text key={String(h.id || hi)} style={styles.hostLine}>· {h.name || h.first_name || h.email}</Text>

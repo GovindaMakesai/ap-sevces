@@ -4,6 +4,11 @@ const agencyService = require('../services/agencyService');
 const { clampLimit, clampOffset } = require('../lib/pagination');
 const STAFF = new Set(['admin', 'super_admin', 'founder', 'ceo']);
 
+function isBdRole(role) {
+  const r = String(role || '').toLowerCase();
+  return r === 'bdm' || r === 'bd';
+}
+
 function assertStaff(req) {
   if (!STAFF.has(String(req.userRole || '').toLowerCase())) {
     const err = new Error('Admin access required');
@@ -15,7 +20,7 @@ function assertStaff(req) {
 function assertBdSelfOrStaff(req, bdUserId) {
   const role = String(req.userRole || '').toLowerCase();
   if (STAFF.has(role)) return;
-  if (role === 'bdm' && String(req.userId) === String(bdUserId)) return;
+  if (isBdRole(role) && String(req.userId) === String(bdUserId)) return;
   const err = new Error('Access denied');
   err.status = 403;
   throw err;
@@ -84,7 +89,7 @@ exports.bdDashboard = async (req, res) => {
   try {
     const bdUserId = req.params.userId || req.userId;
     assertBdSelfOrStaff(req, bdUserId);
-    if (String(req.userRole).toLowerCase() === 'bdm' && String(bdUserId) !== String(req.userId)) {
+    if (isBdRole(req.userRole) && String(bdUserId) !== String(req.userId)) {
       return res.status(403).json({ success: false, message: 'Cannot view other BD data' });
     }
     const data = await hierarchyService.bdDashboard(bdUserId);
@@ -98,7 +103,7 @@ exports.bdAgencies = async (req, res) => {
   try {
     const bdUserId = req.params.userId || req.userId;
     assertBdSelfOrStaff(req, bdUserId);
-    if (String(req.userRole).toLowerCase() === 'bdm' && String(bdUserId) !== String(req.userId)) {
+    if (isBdRole(req.userRole) && String(bdUserId) !== String(req.userId)) {
       return res.status(403).json({ success: false, message: 'Cannot view other BD data' });
     }
     const tree = await hierarchyService.getHierarchyTree({ bdUserId, limitAgencies: 200 });
@@ -175,8 +180,28 @@ exports.agencyDashboard = async (req, res) => {
     } else if (role !== 'agency' && !STAFF.has(role)) {
       return res.status(403).json({ success: false, message: 'Agency access required' });
     }
-    const data = await hierarchyService.agencyDashboard(ownerId);
-    res.json({ success: true, data });
+    try {
+      const data = await hierarchyService.agencyDashboard(ownerId);
+      res.json({ success: true, data });
+    } catch (inner) {
+      /* Staff / platform owner with no agency row yet — return empty shell instead of hard fail */
+      if (STAFF.has(role) && /agency not found/i.test(String(inner.message || ''))) {
+        return res.json({
+          success: true,
+          data: {
+            agency: null,
+            hosts: [],
+            childAgencies: [],
+            hostCount: 0,
+            inviteAgencyCount: 0,
+            monthPoints: 0,
+            monthRevenueCoins: 0,
+            staffPreview: true,
+          },
+        });
+      }
+      throw inner;
+    }
   } catch (e) {
     res.status(e.status || 400).json({ success: false, message: e.message });
   }
@@ -291,7 +316,7 @@ exports.getHierarchy = async (req, res) => {
   try {
     const role = String(req.userRole || '').toLowerCase();
     let bdUserId = req.query.bd_id || req.query.bdId || null;
-    if (role === 'bdm') {
+    if (isBdRole(role)) {
       bdUserId = req.userId;
     } else if (!STAFF.has(role)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
@@ -326,7 +351,7 @@ exports.getHierarchyBd = async (req, res) => {
   try {
     assertBdSelfOrStaff(req, req.params.id);
     if (
-      String(req.userRole).toLowerCase() === 'bdm' &&
+      isBdRole(req.userRole) &&
       String(req.params.id) !== String(req.userId)
     ) {
       return res.status(403).json({ success: false, message: 'Cannot view other BD data' });
@@ -346,7 +371,7 @@ exports.getHierarchyAgency = async (req, res) => {
 
     if (STAFF.has(role)) {
       /* ok */
-    } else if (role === 'bdm' && String(agency.bd_user_id) === String(req.userId)) {
+    } else if (isBdRole(role) && String(agency.bd_user_id) === String(req.userId)) {
       /* ok */
     } else if (role === 'agency' && String(agency.owner_user_id) === String(req.userId)) {
       /* ok */
@@ -437,7 +462,7 @@ exports.requestHost = async (req, res) => {
 exports.bdPromoCodes = async (req, res) => {
   try {
     const bdUserId = req.userId;
-    if (String(req.userRole).toLowerCase() !== 'bdm' && !STAFF.has(String(req.userRole || '').toLowerCase())) {
+    if (!isBdRole(req.userRole) && !STAFF.has(String(req.userRole || '').toLowerCase())) {
       return res.status(403).json({ success: false, message: 'BD access required' });
     }
     const target = STAFF.has(String(req.userRole || '').toLowerCase())
@@ -456,11 +481,11 @@ exports.bdPromoCodes = async (req, res) => {
 exports.bdPendingApplications = async (req, res) => {
   try {
     const role = String(req.userRole || '').toLowerCase();
-    if (role !== 'bdm' && !STAFF.has(role)) {
+    if (!isBdRole(role) && !STAFF.has(role)) {
       return res.status(403).json({ success: false, message: 'BD access required' });
     }
-    const bdUserId = role === 'bdm' ? req.userId : req.query.user_id || req.userId;
-    if (role === 'bdm') assertBdSelfOrStaff(req, bdUserId);
+    const bdUserId = isBdRole(role) ? req.userId : req.query.user_id || req.userId;
+    if (isBdRole(role)) assertBdSelfOrStaff(req, bdUserId);
     const data = await hierarchyService.listPendingForBd(bdUserId);
     res.json({ success: true, data });
   } catch (e) {
@@ -471,11 +496,11 @@ exports.bdPendingApplications = async (req, res) => {
 exports.bdReviewApplication = async (req, res) => {
   try {
     const role = String(req.userRole || '').toLowerCase();
-    if (role !== 'bdm' && !STAFF.has(role)) {
+    if (!isBdRole(role) && !STAFF.has(role)) {
       return res.status(403).json({ success: false, message: 'BD access required' });
     }
-    const bdUserId = role === 'bdm' ? req.userId : req.body.bd_user_id || req.userId;
-    if (role === 'bdm' && String(bdUserId) !== String(req.userId)) {
+    const bdUserId = isBdRole(role) ? req.userId : req.body.bd_user_id || req.userId;
+    if (isBdRole(role) && String(bdUserId) !== String(req.userId)) {
       return res.status(403).json({ success: false, message: 'Cannot review for another BD' });
     }
     const decision = req.body.decision || (req.body.approve ? 'approved' : 'rejected');

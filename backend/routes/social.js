@@ -8,6 +8,8 @@ const privateUpload = require('../middleware/privateUpload');
 const socialMediaUpload = require('../middleware/socialMediaUpload');
 
 router.get('/gifts/catalog', social.listGiftCatalog);
+router.get('/gifts/lucky/history', verifyToken, social.luckyGiftHistory);
+router.get('/gifts/lucky/rank', optionalAuth, social.luckyGiftRank);
 router.get('/coin-sellers', social.listCoinSellers);
 router.get('/discover/creators', optionalAuth, social.discoverCreators);
 router.get('/discover/rails', optionalAuth, social.discoverRails);

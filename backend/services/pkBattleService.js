@@ -2,7 +2,7 @@ const db = require('../config/database');
 const walletService = require('./walletService');
 const { uidFromUserId } = require('../lib/agoraUid');
 
-const FORMAT_TEAM_SIZE = { '1v1': 1, '1v2': 2, '1v4': 4, '1v8': 8 };
+const FORMAT_TEAM_SIZE = { '1v1': 1, '1v2': 2, '3v3': 3, '1v4': 4, '1v8': 8 };
 const MAX_PK_FIGHTERS = 6;
 
 /** In-memory map so gifts on either host stream score the shared PK battle. */

@@ -23,9 +23,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { filePart, pickMedia } from '../../lib/pickMedia';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../context/SocketContext';
+import { useLiveMini } from '../../context/LiveMiniContext';
+import { claimHold, peekHold, releaseHoldIfDifferent } from '../../lib/liveMiniHold';
 import { colors } from '../../config/theme';
 import GiftSheet from '../../components/GiftSheet';
 import GiftBurst from '../../components/GiftBurst';
+import LuckyGiftBoard from '../../components/LuckyGiftBoard';
+import LuckyResultOverlay from '../../components/LuckyResultOverlay';
+import {
+  LuckyBoxComposer,
+  LuckyBoxRules,
+  LuckyBoxFloat,
+  LuckyBoxClaim,
+  LuckyBoxWinBanner,
+} from '../../components/LuckyBoxSheet';
 import { resolveGiftAnim } from '../../config/giftAnims';
 import { FadeIn, bottomSafe } from '../../components/motion';
 import { Avatar } from '../../components/ui';
@@ -40,6 +51,7 @@ import {
   enterPublisherAudioRoute,
   ensureRemoteAudioOpen,
   ensureRemoteVideoOpen,
+  muteRemoteVideoForAudioOnly,
   publisherMediaOptions,
   audienceMediaOptions,
   promoteToPublisher,
@@ -51,6 +63,7 @@ import { formatUserDisplayId, isPlatformAdmin, hierarchyKeys } from '../../lib/r
 import { displayName as formatDisplayName } from '../../lib/apiClient';
 import { sanitizePublicText } from '../../lib/safeText';
 import { mediaUrl } from '../../config/api';
+import { newClientRequestId } from '../../lib/clientRequestId';
 import {
   ApplyingUserSheet,
   AudienceSheet,
@@ -60,6 +73,9 @@ import {
   LiveBottomBar,
   LiveChatFeed,
   LiveHeader,
+  PartyHeader,
+  PartyStageBackdrop,
+  RoomFollowSheet,
   MemberActionMenu,
   PartySeatGrid,
   RankBadges,
@@ -70,7 +86,7 @@ import {
   GifterRail,
   copyId,
   nowUpdateLabel,
-  uniquePeople,
+  activeRoomPeople,
   uniqueGames,
   GAME_CENTER,
 } from './LiveOverlays';
@@ -85,9 +101,13 @@ try {
   Agora = null;
 }
 
-async function requestMedia(asHost) {
+async function requestMedia(asHost, { party = false } = {}) {
   if (Platform.OS !== 'android') return true;
   await requestBluetoothConnect();
+  if (party) {
+    if (!asHost) return true;
+    return requestMicPermission();
+  }
   if (!asHost) return true;
   const micOk = await requestMicPermission();
   if (!micOk) return false;
@@ -105,6 +125,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { api, user, accessToken } = useAuth();
   const socket = useSocket();
+  const liveMini = useLiveMini();
 
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState('');
@@ -148,6 +169,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   const [camOff, setCamOff] = useState(false);
   const [stateSnap, setStateSnap] = useState(null);
   const [hideChat, setHideChat] = useState(false);
+  const [hideMicStatus, setHideMicStatus] = useState(false);
   const [hideChrome, setHideChrome] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -167,7 +189,33 @@ export default function LiveRoomScreen({ navigation, route }) {
   const [speakerOn, setSpeakerOn] = useState(true);
   const [giftSending, setGiftSending] = useState(false);
   const [giftError, setGiftError] = useState('');
+  const [luckyBoard, setLuckyBoard] = useState(false);
+  const [luckyResult, setLuckyResult] = useState(null);
+  const [luckyBoxOpen, setLuckyBoxOpen] = useState(false);
+  const [luckyBoxRules, setLuckyBoxRules] = useState(false);
+  const [luckyBoxClaim, setLuckyBoxClaim] = useState(false);
+  const [activeLuckyBox, setActiveLuckyBox] = useState(null);
+  const [luckyBoxSending, setLuckyBoxSending] = useState(false);
+  const [luckyBoxError, setLuckyBoxError] = useState('');
+  const [luckyBoxWin, setLuckyBoxWin] = useState(null);
+  const [luckyClaimResult, setLuckyClaimResult] = useState(null);
+  const [showRoomInfo, setShowRoomInfo] = useState(false);
+  const [roomInfoTab, setRoomInfoTab] = useState('member');
+  const [roomFollow, setRoomFollow] = useState({ following: false, followers: 0 });
+  const [roomMembers, setRoomMembers] = useState([]);
+  const [focusUser, setFocusUser] = useState(null);
+  const giftSendingRef = useRef(false);
   const lastLocalGiftRef = useRef({ at: 0, key: '' });
+  const showGiftsRef = useRef(false);
+  const luckyBoardRef = useRef(false);
+  const luckyResultRef = useRef(null);
+  const luckyBoxOpenRef = useRef(false);
+  const luckyBoxClaimRef = useRef(false);
+  showGiftsRef.current = showGifts;
+  luckyBoardRef.current = luckyBoard;
+  luckyResultRef.current = luckyResult;
+  luckyBoxOpenRef.current = luckyBoxOpen;
+  luckyBoxClaimRef.current = luckyBoxClaim;
   const [seatMoveUser, setSeatMoveUser] = useState(null);
   const [inviteSeatIndex, setInviteSeatIndex] = useState(null);
   const [speakingKeys, setSpeakingKeys] = useState(() => new Set());
@@ -203,6 +251,9 @@ export default function LiveRoomScreen({ navigation, route }) {
   const wasOnSeatRef = useRef(false);
 
   const engineRef = useRef(null);
+  const minimizingRef = useRef(false);
+  const leavingRef = useRef(false);
+  const switchingRef = useRef(false);
   const accessTokenRef = useRef(accessToken);
   accessTokenRef.current = accessToken;
   const camOffRef = useRef(camOff);
@@ -216,6 +267,10 @@ export default function LiveRoomScreen({ navigation, route }) {
   const meId = String(user?.id || '');
   const hostUid = String(room.hostId || (isHost ? user?.id : '') || '');
   const platformAdmin = isPlatformAdmin(user);
+
+  useEffect(() => {
+    liveMini.prepareForRoom(channel);
+  }, [channel, liveMini]);
 
   const toast = (msg) => {
     if (Platform.OS === 'android') ToastAndroid.show(String(msg || ''), ToastAndroid.SHORT);
@@ -244,6 +299,7 @@ export default function LiveRoomScreen({ navigation, route }) {
     }
     const pkOpp = pk?.targetUserId || pk?.rightUserId || pk?.guestUserId;
     if (pkOpp) push(pk?.rightName || pk?.guestName || 'Rival', pkOpp, pk?.rightPic || pk?.guestProfilePic, 'pk');
+    if (focusUser?.id) push(focusUser.name, focusUser.id, focusUser.pic, 'focus');
     seats.forEach((s) => {
       const u = s?.user;
       if (!u) return;
@@ -252,15 +308,19 @@ export default function LiveRoomScreen({ navigation, route }) {
       push(u.name || u.displayName || 'Guest', uid, u.profilePic || u.profile_pic || u.pic, 'seat');
     });
     return list;
-  }, [hostUid, meId, pk, room.hostName, room.hostProfilePic, seats]);
+  }, [hostUid, meId, pk, room.hostName, room.hostProfilePic, seats, focusUser]);
 
   const isRoomAdminSelf = useMemo(() => {
+    if (platformAdmin) return true;
     const members = [...(stateSnap?.onlineMembers || []), ...(stateSnap?.seats || [])];
     return members.some((m) => {
       const uid = String(m.userId || m.user_id || m.id || '');
-      return uid === meId && (m.isAdmin || m.role === 'admin');
+      return (
+        uid === meId &&
+        (m.isAdmin || m.role === 'admin' || m.isPlatformAdmin)
+      );
     });
-  }, [meId, stateSnap]);
+  }, [meId, stateSnap, platformAdmin]);
   const canModerate = isHost || isRoomAdminSelf || platformAdmin;
   const chatLocked = Boolean(stateSnap?.chatLocked);
   const liveRoomId = stateSnap?.roomId || stateSnap?.id || room.roomId || room.id || null;
@@ -494,14 +554,99 @@ export default function LiveRoomScreen({ navigation, route }) {
   };
 
   const setupAgora = useCallback(async () => {
-    if (!Agora || !channel) {
+    if (!channel) {
       setAgoraReady(true);
-      if (!Agora) setError('Live video is unavailable on this install. Chat still works.');
+      return;
+    }
+    releaseHoldIfDifferent(channel);
+
+    const bindHandlers = (engine, uid) => {
+      engine.registerEventHandler({
+        onJoinChannelSuccess: () => {
+          setJoined(true);
+          syncAgoraAudioRoute(engine, { speakerWanted: speakerOnRef.current }).catch(() => {});
+          const hostUid = hostVideoUidRef.current;
+          if (hostUid) {
+            ensureRemoteAudioOpen(engine, hostUid);
+            if (!isParty) ensureRemoteVideoOpen(engine, hostUid);
+            else muteRemoteVideoForAudioOnly(engine);
+          }
+        },
+        onUserJoined: (_conn, remote) => {
+          hostVideoUidRef.current = remote;
+          setRemoteUid(remote);
+          ensureRemoteAudioOpen(engine, remote);
+          if (!isParty) ensureRemoteVideoOpen(engine, remote);
+          else muteRemoteVideoForAudioOnly(engine);
+        },
+        onUserOffline: (_conn, remote) => {
+          if (hostVideoUidRef.current === remote) {
+            hostVideoUidRef.current = null;
+          }
+          setRemoteUid((cur) => (cur === remote ? null : cur));
+        },
+        onRemoteVideoStateChanged: (_conn, remote, state) => {
+          if (isParty) {
+            muteRemoteVideoForAudioOnly(engine);
+            return;
+          }
+          if (state === 1 || state === 2) {
+            hostVideoUidRef.current = remote;
+            setRemoteUid((cur) => (cur === remote ? cur : remote));
+            ensureRemoteVideoOpen(engine, remote);
+          }
+        },
+        onAudioVolumeIndication: (...args) => {
+          const speakers = Array.isArray(args[0]) ? args[0] : Array.isArray(args[1]) ? args[1] : [];
+          const next = new Set();
+          speakers.forEach((sp) => {
+            if (Number(sp?.volume || 0) < 10) return;
+            const spUid = Number(sp.uid);
+            if (spUid === 0 || spUid === uid) next.add('local');
+            else next.add(String(spUid));
+          });
+          setSpeakingKeys((prev) => {
+            if (prev.size === next.size && [...next].every((k) => prev.has(k))) return prev;
+            return next;
+          });
+        },
+        onAudioRoutingChanged: () => {
+          syncAgoraAudioRoute(engine, { speakerWanted: speakerOnRef.current }).catch(() => {});
+        },
+        onError: (_engine, err) => {
+          if (err) softError(`Live engine error ${err}`);
+        },
+      });
+    };
+
+    const held = claimHold(channel);
+    if (held?.engine) {
+      const engine = held.engine;
+      engineRef.current = engine;
+      if (held.remoteUid) {
+        hostVideoUidRef.current = held.remoteUid;
+        setRemoteUid(held.remoteUid);
+      }
+      if (held.localUid) setLocalUid(held.localUid);
+      bindHandlers(engine, held.localUid || 0);
+      try {
+        if (isParty) muteRemoteVideoForAudioOnly(engine);
+        else if (held.remoteUid) ensureRemoteVideoOpen(engine, held.remoteUid);
+        ensureRemoteAudioOpen(engine, held.remoteUid);
+        syncAgoraAudioRoute(engine, { speakerWanted: speakerOnRef.current }).catch(() => {});
+      } catch (_e) {}
+      setAgoraReady(true);
+      setJoined(true);
+      return;
+    }
+    if (!Agora) {
+      setAgoraReady(true);
+      setError('Live video is unavailable on this install. Chat still works.');
       return;
     }
     if (engineRef.current) return;
     try {
-      await requestMedia(isHost);
+      await requestMedia(isHost, { party: isParty });
     const tokenRes = await api.post('/live/agora/token', {
         channel: String(channel).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64),
       role: isHost ? 'host' : 'audience',
@@ -528,64 +673,22 @@ export default function LiveRoomScreen({ navigation, route }) {
       try {
         engine.enableAudioVolumeIndication?.(200, 3, true);
       } catch (_e) {}
-    engine.registerEventHandler({
-        onJoinChannelSuccess: () => {
-          setJoined(true);
-          syncAgoraAudioRoute(engine, { speakerWanted: speakerOnRef.current }).catch(() => {});
-          const hostUid = hostVideoUidRef.current;
-          if (hostUid) {
-            ensureRemoteAudioOpen(engine, hostUid);
-            ensureRemoteVideoOpen(engine, hostUid);
-          }
-        },
-        onUserJoined: (_conn, remote) => {
-          hostVideoUidRef.current = remote;
-          setRemoteUid(remote);
-          ensureRemoteAudioOpen(engine, remote);
-          ensureRemoteVideoOpen(engine, remote);
-        },
-        onUserOffline: (_conn, remote) => {
-          if (hostVideoUidRef.current === remote) {
-            hostVideoUidRef.current = null;
-          }
-          setRemoteUid((cur) => (cur === remote ? null : cur));
-        },
-        onRemoteVideoStateChanged: (_conn, remote, state) => {
-          if (state === 1 || state === 2) {
-            hostVideoUidRef.current = remote;
-            setRemoteUid((cur) => (cur === remote ? cur : remote));
-            ensureRemoteVideoOpen(engine, remote);
-          }
-        },
-        onAudioVolumeIndication: (...args) => {
-          const speakers = Array.isArray(args[0]) ? args[0] : Array.isArray(args[1]) ? args[1] : [];
-          const next = new Set();
-          speakers.forEach((sp) => {
-            if (Number(sp?.volume || 0) < 10) return;
-            const spUid = Number(sp.uid);
-            if (spUid === 0 || spUid === uid) next.add('local');
-            else next.add(String(spUid));
-          });
-          setSpeakingKeys((prev) => {
-            if (prev.size === next.size && [...next].every((k) => prev.has(k))) return prev;
-            return next;
-          });
-        },
-        onAudioRoutingChanged: () => {
-          syncAgoraAudioRoute(engine, { speakerWanted: speakerOnRef.current }).catch(() => {});
-        },
-      onError: (_engine, err) => {
-          if (err) softError(`Live engine error ${err}`);
-      },
-    });
+    bindHandlers(engine, uid);
       /* Always enable audio — video lives also need clear host voice */
       try {
         engine.enableAudio?.();
-        engine.enableVideo?.();
-        if (isHost) {
-          engine.enableLocalVideo?.(true);
-          engine.startPreview?.();
-          engine.muteLocalAudioStream?.(Boolean(mutedRef.current));
+        if (isParty) {
+          muteRemoteVideoForAudioOnly(engine);
+          if (isHost) {
+            engine.muteLocalAudioStream?.(Boolean(mutedRef.current));
+          }
+        } else {
+          engine.enableVideo?.();
+          if (isHost) {
+            engine.enableLocalVideo?.(true);
+            engine.startPreview?.();
+            engine.muteLocalAudioStream?.(Boolean(mutedRef.current));
+          }
         }
       } catch (_e) {}
     await engine.joinChannel(token, channel, uid, {
@@ -594,14 +697,17 @@ export default function LiveRoomScreen({ navigation, route }) {
         : ClientRoleType.ClientRoleAudience,
       channelProfile: ChannelProfileType.ChannelProfileLiveBroadcasting,
       publishMicrophoneTrack: isHost && !mutedRef.current,
-      publishCameraTrack: isHost && !camOffRef.current,
+      publishCameraTrack: isHost && !isParty && !camOffRef.current,
       autoSubscribeAudio: true,
-      autoSubscribeVideo: true,
+      autoSubscribeVideo: !isParty,
     });
       await syncAgoraAudioRoute(engine, { speakerWanted: true });
-      if (isHost) {
-        applyAgoraBeauty(engine, beautyFilterRef.current || room.beautyFilter || 'none');
+      if (isHost && !isParty) {
+        const applyBeauty = () => applyAgoraBeauty(engine, beautyFilterRef.current || room.beautyFilter || 'none');
+        applyBeauty();
+        setTimeout(applyBeauty, 400);
       }
+      if (isParty) muteRemoteVideoForAudioOnly(engine);
     setAgoraReady(true);
     setJoined(true);
     } catch (e) {
@@ -622,6 +728,10 @@ export default function LiveRoomScreen({ navigation, route }) {
     })();
     return () => {
       cancelled = true;
+      if (minimizingRef.current || peekHold()?.channel === channel) {
+        engineRef.current = null;
+        return;
+      }
       try {
         engineRef.current?.leaveChannel?.();
         engineRef.current?.release?.();
@@ -643,12 +753,13 @@ export default function LiveRoomScreen({ navigation, route }) {
     if (!joined || isHost) return undefined;
     const heal = () => {
       const uid = hostVideoUidRef.current;
-      ensureRemoteVideoOpen(engineRef.current, uid);
       ensureRemoteAudioOpen(engineRef.current, uid);
+      if (isParty) muteRemoteVideoForAudioOnly(engineRef.current);
+      else ensureRemoteVideoOpen(engineRef.current, uid);
     };
     const t = setInterval(heal, 12000);
     return () => clearInterval(t);
-  }, [joined, isHost]);
+  }, [joined, isHost, isParty]);
 
   useEffect(() => {
     let unsubs = [];
@@ -687,6 +798,49 @@ export default function LiveRoomScreen({ navigation, route }) {
         if (cancelled) return;
 
         unsubs.push(socket.on('live:chat', (m) => appendChat(m)));
+        unsubs.push(socket.on('live:lucky_gift', (ev) => {
+          const prize = Number(ev?.prize || 0);
+          if (prize <= 0) return;
+          const mine = String(ev?.fromUserId || '') === String(user?.id || '');
+          if (mine) return;
+          appendChat({
+            user: ev.from || 'Lucky Gift',
+            text: `Lucky return 🪙 ${prize.toLocaleString()}`,
+            type: 'system',
+          });
+        }));
+        unsubs.push(socket.on('live:lucky_box', (box) => {
+          if (box) {
+            setActiveLuckyBox(box);
+            appendChat({
+              user: box.senderName || 'Lucky Box',
+              text: 'sent a lucky box 🎁',
+              type: 'system',
+            });
+          }
+        }));
+        unsubs.push(socket.on('live:lucky_box_update', (box) => {
+          if (!box?.id) return;
+          setActiveLuckyBox((prev) => (prev && String(prev.id) === String(box.id) ? { ...prev, ...box } : prev || box));
+        }));
+        unsubs.push(socket.on('live:lucky_box_win', (ev) => {
+          setLuckyBoxWin(ev);
+          setTimeout(() => setLuckyBoxWin(null), 4200);
+          appendChat({
+            user: ev.name || 'Lucky Box',
+            text: `won 🪙 ${Number(ev.prize || 0).toLocaleString()}`,
+            type: 'gift',
+          });
+        }));
+        unsubs.push(socket.on('live:lucky_box_result', (ev) => {
+          setActiveLuckyBox((prev) => (prev ? { ...prev, status: 'settled', remainingCount: 0 } : prev));
+          if (ev?.winners?.length) {
+            const mine = ev.winners.find((w) => String(w.userId) === String(user?.id));
+            if (mine) setLuckyClaimResult(mine);
+            setLuckyBoxWin({ name: 'Lucky Draw', prize: mine?.prize || ev.winners[0]?.prize });
+            setTimeout(() => setLuckyBoxWin(null), 4200);
+          }
+        }));
         unsubs.push(socket.on('live:gift', (g) => {
           const anim = resolveGiftAnim(g);
           const giftLabel = [g.emoji, g.name || g.giftName || anim.title || 'Gift'].filter(Boolean).join(' ');
@@ -720,12 +874,34 @@ export default function LiveRoomScreen({ navigation, route }) {
         unsubs.push(socket.on('live:ended', () => {
           if (!isHost) {
             if (Platform.OS === 'android') ToastAndroid.show('Live ended', ToastAndroid.SHORT);
-            navigation.goBack();
+            leavingRef.current = true;
+            liveMini.clearIfChannel(channel);
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate('Main');
           }
         }));
         unsubs.push(socket.on('live:kicked', () => {
           if (Platform.OS === 'android') ToastAndroid.show('You were removed', ToastAndroid.SHORT);
-          navigation.goBack();
+          leavingRef.current = true;
+          liveMini.clearIfChannel(channel);
+          if (navigation.canGoBack()) navigation.goBack();
+          else navigation.navigate('Main');
+        }));
+        unsubs.push(socket.on('live:member_left', (d) => {
+          const leftId = String(d?.userId || d?.user_id || d?.id || '');
+          if (!leftId) return;
+          setStateSnap((prev) => {
+            const members = (prev?.onlineMembers || []).filter(
+              (m) => String(m?.userId || m?.id || m?.user?.id || '') !== leftId
+            );
+            return { ...(prev || {}), onlineMembers: members };
+          });
+          setSeats((prev) =>
+            prev.map((s) => {
+              const uid = String(s?.user?.id || s?.user?.userId || '');
+              return uid && uid === leftId ? { ...s, user: null } : s;
+            })
+          );
         }));
         unsubs.push(socket.on('live:state', (s) => {
           setStateSnap(s);
@@ -787,10 +963,12 @@ export default function LiveRoomScreen({ navigation, route }) {
                 engine: engineRef.current,
                 channel,
                 muted: false,
+                audioOnly: isParty,
               })
                 .then(() => {
                   ensureRemoteAudioOpen(engineRef.current);
-                  ensureRemoteVideoOpen(engineRef.current, hostVideoUidRef.current);
+                  if (isParty) muteRemoteVideoForAudioOnly(engineRef.current);
+                  else ensureRemoteVideoOpen(engineRef.current, hostVideoUidRef.current);
                   try {
                     socket.emit('live:guest_mic_ready', {
                       channel,
@@ -805,7 +983,7 @@ export default function LiveRoomScreen({ navigation, route }) {
             }
             /* If we were publishing on a seat and got removed, drop publisher role */
             if (me && !isHost && wasOnSeatRef.current && !stillSeated) {
-              demoteToAudience({ api, engine: engineRef.current, channel }).catch(() => {});
+              demoteToAudience({ api, engine: engineRef.current, channel, audioOnly: isParty }).catch(() => {});
             }
             wasOnSeatRef.current = stillSeated;
             /* Keep local mute UI in sync with seat state (host + guests) */
@@ -898,11 +1076,13 @@ export default function LiveRoomScreen({ navigation, route }) {
               engine: engineRef.current,
               channel,
               muted: false,
+              audioOnly: isParty,
             })
               .then(() => {
                 wasOnSeatRef.current = true;
                 ensureRemoteAudioOpen(engineRef.current);
-                ensureRemoteVideoOpen(engineRef.current, hostVideoUidRef.current);
+                if (isParty) muteRemoteVideoForAudioOnly(engineRef.current);
+                else ensureRemoteVideoOpen(engineRef.current, hostVideoUidRef.current);
                 try {
                   socket.emit('live:guest_mic_ready', {
                     channel,
@@ -958,6 +1138,12 @@ export default function LiveRoomScreen({ navigation, route }) {
         }));
 
         await loadWalletAndGifts();
+        api.get('/live/lucky-box/active', { channel }, { auth: false, cacheTtlMs: 0 })
+          .then((r) => {
+            const list = api.extractList(r);
+            if (list[0]) setActiveLuckyBox(list[0]);
+          })
+          .catch(() => {});
         if (!isHost && room.hostId) {
           api.get(`/social/creators/${room.hostId}/engagement`, null, { auth: false })
             .then((r) => {
@@ -966,23 +1152,33 @@ export default function LiveRoomScreen({ navigation, route }) {
             })
             .catch(() => {});
         }
+        if (isParty && channel) {
+          api.get(`/live/rooms/${encodeURIComponent(channel)}/follow`)
+            .then((r) => {
+              const d = api.unwrap(r) || {};
+              setRoomFollow({
+                following: Boolean(d.following),
+                followers: Number(d.followers || 0),
+              });
+            })
+            .catch(() => {});
+          api.get(`/live/rooms/${encodeURIComponent(channel)}/followers`)
+            .then((r) => setRoomMembers(api.extractList(r)))
+            .catch(() => {});
+        }
       } catch (e) {
         if (!cancelled) softError(e.message || 'Could not join live');
       }
     })();
-
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {
-      navigation.goBack();
-      return true;
-    });
 
     const appSub = AppState.addEventListener('change', (next) => {
       if (next === 'active') {
         LiveAudioRoute.onAppForeground().catch(() => {});
         syncAgoraAudioRoute(engineRef.current, { speakerWanted: speakerOnRef.current }).catch(() => {});
         const uid = hostVideoUidRef.current;
-        ensureRemoteVideoOpen(engineRef.current, uid);
         ensureRemoteAudioOpen(engineRef.current, uid);
+        if (isParty) muteRemoteVideoForAudioOnly(engineRef.current);
+        else ensureRemoteVideoOpen(engineRef.current, uid);
         if (!isParty) assertLiveSecure('app_foreground').catch(() => {});
       }
     });
@@ -994,7 +1190,6 @@ export default function LiveRoomScreen({ navigation, route }) {
     return () => {
       cancelled = true;
       chatSeededRef.current = false;
-      back.remove();
       try {
         appSub?.remove?.();
       } catch (_e) {}
@@ -1005,13 +1200,15 @@ export default function LiveRoomScreen({ navigation, route }) {
           u?.();
         } catch (_e) {}
       });
+      if (minimizingRef.current) return;
+      liveMini.clearIfChannel(channel);
       try {
         socket.leaveLive(channel);
       } catch (_e) {}
       LiveAudioRoute.leaveLive('leave_room').catch(() => {});
       leaveLiveSecure(isParty ? 'party_leave' : 'live_leave').catch(() => {});
     };
-  }, [appendChat, channel, hydrateChatFromState, isHost, isParty, loadWalletAndGifts, navigation, room.hostId, socket, user?.id]);
+  }, [appendChat, channel, hydrateChatFromState, isHost, isParty, loadWalletAndGifts, navigation, room.hostId, socket, user?.id, liveMini, softError]);
 
   /* Live PK must stay screenshot-locked even if capture was briefly cleared */
   useEffect(() => {
@@ -1129,7 +1326,7 @@ export default function LiveRoomScreen({ navigation, route }) {
     return giftRecipients[0] ? [giftRecipients[0]] : [];
   };
 
-  const sendGiftHttp = async (receiverId, gift, amount, qty) => {
+  const sendGiftHttp = async (receiverId, gift, amount, qty, clientRequestId) => {
     const res = await api.post('/wallet/gifts', {
       receiverId,
       receiver_id: receiverId,
@@ -1140,6 +1337,8 @@ export default function LiveRoomScreen({ navigation, route }) {
       qty,
       liveRoomId: liveRoomId || undefined,
       live_room_id: liveRoomId || undefined,
+      clientRequestId,
+      client_request_id: clientRequestId,
     });
     return api.unwrap(res);
   };
@@ -1174,15 +1373,17 @@ export default function LiveRoomScreen({ navigation, route }) {
       toast('Not enough coins for this gift');
       return;
     }
-    if (giftSending) {
+    if (giftSendingRef.current) {
       toast('Gift still sending…');
-      return;
+      throw new Error('Gift still sending…');
     }
+    giftSendingRef.current = true;
     setGiftSending(true);
     setGiftError('');
       const anim = resolveGiftAnim(gift);
     let sent = 0;
     let lastError = '';
+    let lastLucky = null;
     try {
       try {
         await socket.connect(accessToken);
@@ -1207,22 +1408,38 @@ export default function LiveRoomScreen({ navigation, route }) {
         name: gift.name || anim.title,
         animToken: anim.token,
         animTitle: anim.title,
+          clientRequestId: `${opts.clientRequestId || newClientRequestId('gift')}-${toUserId.slice(0, 12)}`,
         };
         try {
+          let ack = null;
           if (socket.socket?.connected) {
-            await socket.sendGift(channel, payload);
+            ack = await socket.sendGift(channel, payload);
           } else {
-            await sendGiftHttp(toUserId, gift, amount, qty);
+            ack = await sendGiftHttp(toUserId, gift, amount, qty, payload.clientRequestId);
           }
           sent += 1;
+          const payloadData = ack?.data || ack || {};
+          const lucky = payloadData.lucky || ack?.lucky;
+          const bal = payloadData.balance || payloadData.sender_balance;
+          if (bal?.giftable_coins != null) {
+            setBalance(Number(bal.giftable_coins));
+          } else if (bal?.coin_balance != null) {
+            setBalance(Number(bal.coin_balance));
+          }
+          if (lucky) lastLucky = lucky;
         } catch (e) {
           const msg = e.message || 'Gift failed';
           lastError = msg;
           if (/not connected/i.test(msg)) {
             try {
-              await sendGiftHttp(toUserId, gift, amount, qty);
+              const httpAck = await sendGiftHttp(toUserId, gift, amount, qty, payload.clientRequestId);
               sent += 1;
               lastError = '';
+              const lucky = httpAck?.lucky;
+              const bal = httpAck?.balance || httpAck?.sender_balance;
+              if (bal?.giftable_coins != null) setBalance(Number(bal.giftable_coins));
+              else if (bal?.coin_balance != null) setBalance(Number(bal.coin_balance));
+              if (lucky) lastLucky = lucky;
             } catch (httpErr) {
               lastError = httpErr.message || msg;
               break;
@@ -1234,7 +1451,9 @@ export default function LiveRoomScreen({ navigation, route }) {
       }
       if (sent > 0) {
       setShowGifts(false);
-        setBalance((b) => Math.max(0, b - amount * sent));
+        if (!lastLucky) {
+          setBalance((b) => Math.max(0, b - amount * sent));
+        }
         const giftLabel = [gift.emoji, gift.name || anim.title || 'Gift'].filter(Boolean).join(' ');
         const dedupeKey = `${user?.id || user?.first_name || 'You'}:${anim.token || giftLabel}:${qty}`;
         const playKey = `local:${dedupeKey}:${Date.now()}`;
@@ -1257,6 +1476,8 @@ export default function LiveRoomScreen({ navigation, route }) {
           userId: meId,
         });
         toast(sent > 1 ? `Gifts sent to ${sent} seats` : 'Gift sent');
+        if (lastLucky) setLuckyResult(lastLucky);
+        loadWalletAndGifts().catch(() => {});
       } else {
         const msg = lastError || 'Gift failed';
         setGiftError(msg);
@@ -1264,8 +1485,10 @@ export default function LiveRoomScreen({ navigation, route }) {
         if (/insufficient/i.test(msg)) {
           setGiftError(`${msg} — check balance or tap coins to recharge`);
         }
+        throw new Error(msg);
       }
     } finally {
+      giftSendingRef.current = false;
       setGiftSending(false);
     }
   };
@@ -1285,6 +1508,22 @@ export default function LiveRoomScreen({ navigation, route }) {
     }
     setGiftError('');
     setShowGifts(true);
+  };
+
+  const focusAndGift = (person) => {
+    if (!person) return;
+    const target = {
+      id: person.id || person.userId,
+      name: person.name || person.displayName,
+      pic: person.pic || person.profilePic || person.profile_pic,
+      agoraUid: person.agoraUid,
+    };
+    if (String(target.id) === meId) {
+      openMember(target);
+      return;
+    }
+    setFocusUser(target);
+    openGiftsFor(target);
   };
 
   useEffect(() => {
@@ -1318,12 +1557,161 @@ export default function LiveRoomScreen({ navigation, route }) {
   };
 
   const endOrLeave = async () => {
+    leavingRef.current = true;
+    liveMini.clearIfChannel(channel);
     try {
-      if (isHost) await socket.endLive(channel);
+      if (isHost && !isParty) await socket.endLive(channel);
       else await socket.leaveLive(channel);
     } catch (_e) {}
-    navigation.goBack();
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Main');
   };
+
+  const doMinimize = useCallback(() => {
+    if (minimizingRef.current || leavingRef.current) return;
+    minimizingRef.current = true;
+    const eng = engineRef.current;
+    const uid = hostVideoUidRef.current || remoteUid;
+    liveMini.minimize({
+      engine: eng,
+      channel,
+      isParty,
+      isHost,
+      remoteUid: uid,
+      localUid,
+      camOff,
+      routeName: isParty ? 'PartyRoom' : 'LiveRoom',
+      params: { ...room, channel, isParty, isHost },
+      hostName: room.hostName || formatDisplayName(user) || 'Live',
+      hostPic: room.hostProfilePic || user?.profile_pic || user?.profilePic,
+      coverUrl: room.coverUrl || room.streamCoverUrl || room.hostProfilePic,
+    });
+    engineRef.current = null;
+    leaveLiveSecure(isParty ? 'party_minimize' : 'live_minimize').catch(() => {});
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Main');
+  }, [camOff, channel, isHost, isParty, liveMini, localUid, navigation, remoteUid, room, user]);
+
+  useEffect(() => {
+    const closeSheet = () => {
+      if (luckyResult) {
+        setLuckyResult(null);
+        return true;
+      }
+      if (luckyBoxClaim) {
+        setLuckyBoxClaim(false);
+        return true;
+      }
+      if (luckyBoxOpen) {
+        setLuckyBoxOpen(false);
+        return true;
+      }
+      if (luckyBoxRules) {
+        setLuckyBoxRules(false);
+        return true;
+      }
+      if (luckyBoard) {
+        setLuckyBoard(false);
+        return true;
+      }
+      if (showGifts) {
+        setShowGifts(false);
+        setGiftError('');
+        return true;
+      }
+      if (showBeauty) {
+        setShowBeauty(false);
+        return true;
+      }
+      if (showTools) {
+        setShowTools(false);
+        return true;
+      }
+      if (showEmoji) {
+        setShowEmoji(false);
+        return true;
+      }
+      if (showPeople) {
+        setShowPeople(false);
+        return true;
+      }
+      if (showProfile) {
+        setShowProfile(false);
+        return true;
+      }
+      if (showGameCenter) {
+        setShowGameCenter(false);
+        return true;
+      }
+      if (showApplying) {
+        setShowApplying(false);
+        return true;
+      }
+      if (pkPick) {
+        setPkPick(false);
+        return true;
+      }
+      if (memberMenu) {
+        setMemberMenu(null);
+        return true;
+      }
+      if (showRoomInfo) {
+        setShowRoomInfo(false);
+        return true;
+      }
+      if (inviteOpen) {
+        setInviteOpen(false);
+        return true;
+      }
+      if (chatImage && !chatImageMini) {
+        setChatImage(null);
+        return true;
+      }
+      return false;
+    };
+
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (closeSheet()) return true;
+      return false;
+    });
+
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      if (leavingRef.current || switchingRef.current || minimizingRef.current) return;
+      if (closeSheet()) {
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      doMinimize();
+    });
+
+    return () => {
+      back.remove();
+      unsub();
+    };
+  }, [
+    chatImage,
+    chatImageMini,
+    doMinimize,
+    inviteOpen,
+    luckyBoard,
+    luckyBoxClaim,
+    luckyBoxOpen,
+    luckyBoxRules,
+    luckyResult,
+    memberMenu,
+    navigation,
+    pkPick,
+    showApplying,
+    showBeauty,
+    showEmoji,
+    showGameCenter,
+    showGifts,
+    showPeople,
+    showProfile,
+    showRoomInfo,
+    showTools,
+  ]);
 
   const toggleMute = () => {
     if (!isHost && !memberOnStage(meId)) {
@@ -1356,6 +1744,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   };
 
   const toggleCam = async () => {
+    if (isParty) return;
     const next = !camOff;
     setCamOff(next);
     const eng = engineRef.current;
@@ -1419,32 +1808,25 @@ export default function LiveRoomScreen({ navigation, route }) {
     return slice ? `ID ${slice}` : '';
   })();
   const hostInfo = { id: room.hostId, name: room.hostName, pic: room.hostProfilePic };
-  const people = uniquePeople(chat, hostInfo, user);
-  seats.forEach((s) => {
-    const u = s.user;
-    if (!u) return;
-    const id = String(u.id || u.userId || '');
-    if (!id || people.some((p) => String(p.id) === id)) return;
-    people.push({
-      id,
-      name: u.name || u.displayName || 'Guest',
-      pic: u.profilePic || u.profile_pic || u.pic,
-      level: u.level || 22,
-      role: 'On seat',
-      isAdmin: false,
-    });
-  });
-  (Array.isArray(stateSnap?.onlineMembers) ? stateSnap.onlineMembers : []).forEach((m) => {
-    const id = String(m?.userId || m?.id || m?.user?.id || '');
-    if (!id || people.some((p) => String(p.id) === id)) return;
-    people.push({
-      id,
-      name: m?.displayName || m?.name || m?.user?.name || 'Viewer',
-      pic: m?.profilePic || m?.profile_pic || m?.user?.profilePic,
-      level: m?.level || 1,
-      role: m?.isAdmin || m?.role === 'admin' ? 'Live admin' : m?.onSeat ? 'On seat' : 'In room',
-      isAdmin: Boolean(m?.isAdmin || m?.role === 'admin'),
-    });
+  const hasPresenceSnap = Boolean(stateSnap && Array.isArray(stateSnap.onlineMembers));
+  const people = activeRoomPeople({
+    host: hostInfo,
+    members: hasPresenceSnap
+      ? stateSnap.onlineMembers
+      : [
+          hostInfo.id
+            ? { userId: hostInfo.id, displayName: hostInfo.name, profilePic: hostInfo.pic }
+            : null,
+          user?.id
+            ? {
+                userId: user.id,
+                displayName: formatDisplayName(user) || user.first_name,
+                profilePic: user.profile_pic || user.profilePic,
+              }
+            : null,
+        ].filter(Boolean),
+    seats,
+    user,
   });
   const announcement = stateSnap?.announcement || room.announcement || '🌸🧿 Radhey radhey 🧿🌸';
   const pinned = chat.find((m) => m.pinned)?.text || '';
@@ -1457,6 +1839,23 @@ export default function LiveRoomScreen({ navigation, route }) {
       setFollowing(!following);
     } catch (e) {
       setError(e.message || 'Follow failed');
+    }
+  };
+
+  const toggleRoomFollow = async () => {
+    if (!channel) return;
+    try {
+      const path = `/live/rooms/${encodeURIComponent(channel)}/follow`;
+      const r = roomFollow.following ? await api.delete(path) : await api.post(path);
+      const d = api.unwrap(r) || {};
+      setRoomFollow({
+        following: Boolean(d.following),
+        followers: Number(d.followers || 0),
+      });
+      const list = await api.get(path.replace(/\/follow$/, '/followers')).catch(() => ({}));
+      setRoomMembers(api.extractList(list));
+    } catch (e) {
+      toast(e.message || 'Could not follow room');
     }
   };
 
@@ -1485,11 +1884,13 @@ export default function LiveRoomScreen({ navigation, route }) {
       engine: engineRef.current,
       channel,
       muted: false,
+      audioOnly: isParty,
     })
       .then(() => {
         wasOnSeatRef.current = true;
         ensureRemoteAudioOpen(engineRef.current);
-        ensureRemoteVideoOpen(engineRef.current, hostVideoUidRef.current);
+        if (isParty) muteRemoteVideoForAudioOnly(engineRef.current);
+        else ensureRemoteVideoOpen(engineRef.current, hostVideoUidRef.current);
         try {
           socket.emit('live:guest_mic_ready', {
             channel,
@@ -1507,6 +1908,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   const declineInvite = () => {
     setInviteOpen(false);
     setInviteSeatIndex(null);
+    socket.respondSeat(channel, { userId: user?.id, accept: false }).catch(() => {});
   };
 
   const inviteToSeat = async (target, seatIndex) => {
@@ -1668,9 +2070,13 @@ export default function LiveRoomScreen({ navigation, route }) {
         name: s.user.name || s.user.displayName,
         pic: s.user.profilePic || s.user.profile_pic || s.user.pic,
         seatIndex: s.index,
+        agoraUid: s.user.agoraUid || s.agoraUid,
       };
-      setGiftTarget(target);
-      openProfile(target);
+      if (String(target.id) === meId) {
+        openMember(target);
+        return;
+      }
+      focusAndGift(target);
       return;
     }
     if (isHost || canModerate) {
@@ -1734,11 +2140,38 @@ export default function LiveRoomScreen({ navigation, route }) {
     const onStage = memberOnStage(uid);
     const adminMember = memberIsAdmin(uid);
     const items = [];
+    if (self && (onStage || isTargetHost)) {
+      if (!isParty) {
+        items.push({
+          id: 'open-video',
+          label: camOff ? 'Open video' : 'Close video',
+          onPress: () => toggleCam(),
+        });
+      }
+      if (onStage && !isTargetHost) {
+        items.push({
+          id: 'leave',
+          label: 'Leave the seat',
+          onPress: () => {
+            demoteToAudience({ api, engine: engineRef.current, channel, audioOnly: isParty }).catch(() => {});
+            runLive('live:demote_speaker', { userId: uid }, 'Left the seat').catch(() => {});
+          },
+        });
+      }
+      items.push({
+        id: 'hide-mic',
+        label: hideMicStatus ? 'Show Microphone Status' : 'Hide Microphone Status',
+        onPress: () => {
+          setHideMicStatus((v) => !v);
+          toast(hideMicStatus ? 'Mic status shown' : 'Mic status hidden');
+        },
+      });
+    }
     if (!self) {
       items.push({
         id: 'gift',
         label: 'Send gift',
-        onPress: () => openGiftsFor(target),
+        onPress: () => focusAndGift(target),
       });
       items.push({
         id: 'follow',
@@ -1751,25 +2184,8 @@ export default function LiveRoomScreen({ navigation, route }) {
         },
       });
     }
-    if (self && (onStage || isTargetHost)) {
-      items.push({
-        id: 'self-mute',
-        label: muted ? 'Unmute my mic' : 'Mute my mic',
-        onPress: () => toggleMute(),
-      });
-    }
-    if (self && onStage && !isTargetHost) {
-      items.push({
-        id: 'leave',
-        label: 'Leave the seat',
-        onPress: () => {
-          demoteToAudience({ api, engine: engineRef.current, channel }).catch(() => {});
-          runLive('live:demote_speaker', { userId: uid }, 'Left the seat').catch(() => {});
-        },
-      });
-    }
     if (canModerate && !self) {
-      if (isHost && !isTargetHost && !adminMember) {
+      if ((isHost || platformAdmin) && !isTargetHost && !adminMember) {
         items.push({
           id: 'admin-grant',
           label: 'Make admin',
@@ -1949,26 +2365,37 @@ export default function LiveRoomScreen({ navigation, route }) {
 
   const videoHostName = room.hostName || formatDisplayName(user) || 'Live';
   const pkActive = Boolean(pk && !isParty);
+  const mainRemoteUid = (!pkActive && !isParty && focusUser?.agoraUid && String(focusUser.id) !== String(hostUid))
+    ? focusUser.agoraUid
+    : remoteUid;
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={pkActive ? styles.videoKeepAlive : StyleSheet.absoluteFill}>
+        {isParty ? (
+          <LinearGradient colors={['#2E1065', '#1E1B4B', '#0F0A1A']} style={StyleSheet.absoluteFill} />
+        ) : (
         <LiveVideoLayer
           key="main-video"
           agoraReady={agoraReady}
-          isHost={isHost}
-          remoteUid={remoteUid}
+          isHost={isHost && !(focusUser?.agoraUid && String(focusUser.id) !== String(hostUid))}
+          remoteUid={mainRemoteUid}
+          uid={focusUser?.agoraUid && String(focusUser.id) !== String(hostUid) ? Number(focusUser.agoraUid) : undefined}
           camOff={camOff}
           beautyFilter={beautyFilter}
           mirrored={mirrored}
-          hostProfilePic={room.hostProfilePic}
-          hostName={videoHostName}
+          hostProfilePic={focusUser?.pic || room.hostProfilePic}
+          hostName={focusUser?.name || videoHostName}
         />
+        )}
       </View>
       {pkActive ? (
         <View style={[styles.pkStage, { top: insets.top + 72 }]}>
-          <View style={styles.pkHalf} key="pk-left">
+          <Pressable
+            style={[styles.pkHalf, focusUser && String(focusUser.id) === String(hostUid) && styles.pkHalfOn]}
+            onPress={() => focusAndGift(hostInfo)}
+          >
             <LiveVideoLayer
               key="pk-left-video"
               agoraReady={agoraReady}
@@ -1981,9 +2408,17 @@ export default function LiveRoomScreen({ navigation, route }) {
               hostName={videoHostName}
             />
             <Text style={styles.pkSideLabel} numberOfLines={1}>{room.hostName || 'You'}</Text>
-          </View>
+          </Pressable>
           <View style={styles.pkBolt}><Text style={styles.pkBoltT}>⚡</Text></View>
-          <View style={styles.pkHalf} key="pk-right">
+          <Pressable
+            style={[styles.pkHalf, focusUser && String(focusUser.id) === String(pk?.targetUserId || pk?.rightUserId || pk?.guestUserId) && styles.pkHalfOn]}
+            onPress={() => focusAndGift({
+              id: pk?.targetUserId || pk?.rightUserId || pk?.guestUserId,
+              name: pk?.rightName || pk?.guestName || 'Rival',
+              pic: pk?.rightPic || pk?.guestProfilePic,
+              agoraUid: rivalRemoteUid,
+            })}
+          >
             <LiveVideoLayer
               key="pk-right-video"
               agoraReady={agoraReady}
@@ -1995,16 +2430,10 @@ export default function LiveRoomScreen({ navigation, route }) {
               uid={rivalRemoteUid}
             />
             <Text style={styles.pkSideLabel} numberOfLines={1}>{pk?.rightName || pk?.guestName || 'Rival'}</Text>
-          </View>
+          </Pressable>
         </View>
       ) : isParty ? (
-        <LinearGradient
-          colors={['rgba(26,11,58,0.35)', 'rgba(45,27,105,0.55)', 'rgba(15,23,42,0.72)']}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.9, y: 1 }}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+        <PartyStageBackdrop />
       ) : null}
 
       <FadeIn style={styles.overlay} from={0} pointerEvents="box-none">
@@ -2025,6 +2454,22 @@ export default function LiveRoomScreen({ navigation, route }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         <View style={{ paddingTop: insets.top + 4 }}>
+          {isParty ? (
+            <PartyHeader
+              hostName={room.hostName}
+              hostPic={room.hostProfilePic}
+              roomId={roomIdLine || `ID:${hostIdLabel}`}
+              viewers={viewers}
+              roomFollowing={roomFollow.following}
+              roomFollowers={roomFollow.followers}
+              isHost={isHost}
+              onHost={() => setShowRoomInfo(true)}
+              onRoomFollow={toggleRoomFollow}
+              onRoomInfo={() => { setRoomInfoTab('member'); setShowRoomInfo(true); }}
+              onClose={endOrLeave}
+            />
+          ) : (
+            <>
           <LiveHeader
             hostName={room.hostName}
             hostPic={room.hostProfilePic}
@@ -2034,7 +2479,7 @@ export default function LiveRoomScreen({ navigation, route }) {
             people={people}
             following={following}
             isHost={isHost}
-            onHost={() => openProfile(hostInfo)}
+            onHost={() => (pkActive ? focusAndGift(hostInfo) : openProfile(hostInfo))}
             onFollow={toggleFollow}
             onPeople={() => { setAudienceTab('online'); setShowPeople(true); }}
             onShare={shareRoom}
@@ -2042,16 +2487,27 @@ export default function LiveRoomScreen({ navigation, route }) {
             onExpand={() => setHideChrome((v) => !v)}
           />
           <RankBadges rank="No.0" />
+            </>
+          )}
         </View>
 
-        <WishWidgets
-          onWish={() => navigation.navigate('LuckyGifts')}
-          banner={pk ? 'PK BATTLE' : isParty ? 'Lucky Gift Weekly Star' : 'Weekly Star'}
-        />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingRight: 10 }} pointerEvents="box-none">
+          {isParty ? (
+            <View style={{ width: 8 }} />
+          ) : (
+          <WishWidgets
+            onWish={() => setLuckyBoard(true)}
+            banner={pk ? 'PK BATTLE' : 'Weekly Star'}
+          />
+          )}
+          <LuckyBoxFloat box={activeLuckyBox} onPress={() => { setLuckyClaimResult(null); setLuckyBoxClaim(true); }} />
+        </View>
+        <LuckyBoxWinBanner event={luckyBoxWin} />
         {pk ? (
           <LiveGuestRail
             rooms={feedRooms}
             onSwitch={(next) => {
+              switchingRef.current = true;
               navigation.replace(next.isParty ? 'PartyRoom' : 'LiveRoom', next);
             }}
           />
@@ -2062,7 +2518,8 @@ export default function LiveRoomScreen({ navigation, route }) {
             host={hostInfo}
             speakingKeys={speakingKeys}
             meId={meId}
-            onPress={(u) => openProfile(u)}
+            onPress={(u) => focusAndGift(u)}
+            hideMic={hideMicStatus}
           />
         ) : null}
 
@@ -2089,7 +2546,20 @@ export default function LiveRoomScreen({ navigation, route }) {
 
         <View style={styles.mid} pointerEvents="box-none" {...chatSwipe.panHandlers}>
           {isParty ? (
-            <PartySeatGrid seats={partySeats} host={hostInfo} onSeat={onSeatPress} speakingKeys={speakingKeys} meId={meId} />
+            <PartySeatGrid
+              seats={partySeats}
+              host={hostInfo}
+              onSeat={onSeatPress}
+              speakingKeys={speakingKeys}
+              meId={meId}
+              hostPresent={
+                isHost ||
+                !hasPresenceSnap ||
+                (stateSnap?.onlineMembers || []).some(
+                  (m) => String(m?.userId || m?.id || m?.user?.id || '') === String(hostUid)
+                )
+              }
+            />
           ) : (
             <View style={{ flex: 1 }} pointerEvents="none" />
           )}
@@ -2265,6 +2735,31 @@ export default function LiveRoomScreen({ navigation, route }) {
         onAgree={acceptInvite}
         onCancel={declineInvite}
       />
+      <RoomFollowSheet
+        visible={showRoomInfo}
+        onClose={() => setShowRoomInfo(false)}
+        hostName={room.hostName}
+        hostPic={room.hostProfilePic}
+        roomId={roomIdLine || `ID ${hostIdLabel}`}
+        live
+        following={roomFollow.following}
+        onFollow={toggleRoomFollow}
+        onShare={shareRoom}
+        onReport={() => {
+          if (!hostUid) return;
+          api.post('/social/report', { userId: hostUid, reason: 'party_room' })
+            .then(() => toast('Reported'))
+            .catch((e) => Alert.alert('Report failed', e.message));
+        }}
+        onCopyId={() => copyId(roomIdLine || hostIdLabel)}
+        onOpenProfile={() => {
+          setShowRoomInfo(false);
+          openProfile(hostInfo);
+        }}
+        members={roomMembers}
+        tab={roomInfoTab}
+        setTab={setRoomInfoTab}
+      />
       <HostProfileSheet
         visible={showProfile}
         onClose={() => { setShowProfile(false); setProfileUser(null); setProfileDetail(null); }}
@@ -2310,6 +2805,7 @@ export default function LiveRoomScreen({ navigation, route }) {
         visible={Boolean(memberMenu)}
         target={memberMenu}
         items={memberMenuItems()}
+        light={Boolean(memberMenu && String(memberMenu.id || memberMenu.userId) === meId)}
         onClose={() => setMemberMenu(null)}
       />
       <ToolsMenuSheet
@@ -2318,7 +2814,8 @@ export default function LiveRoomScreen({ navigation, route }) {
         isHost={isHost}
         canModerate={canModerate}
         chatLocked={chatLocked}
-        onLucky={() => { setShowTools(false); navigation.navigate('LuckyGifts'); }}
+        onLucky={() => { setShowTools(false); setLuckyBoard(true); }}
+        onLuckyBox={() => { setShowTools(false); setLuckyBoxError(''); setLuckyBoxOpen(true); }}
         onEntry={() => { setShowTools(false); navigation.navigate('Store'); }}
         onGiftFx={() => { setShowTools(false); openGiftsFor(giftRecipients[0] || hostInfo); }}
         onPhoto={() => { setShowTools(false); sendPhoto(); }}
@@ -2367,7 +2864,7 @@ export default function LiveRoomScreen({ navigation, route }) {
         onGames={() => { setShowTools(false); setShowGameCenter(true); }}
         onWallet={() => navigation.navigate('Wallet')}
         onBackpack={() => navigation.navigate('Store')}
-        onGiftWish={() => navigation.navigate('LuckyGifts')}
+        onGiftWish={() => setLuckyBoard(true)}
         onStreamerCenter={() => navigation.navigate('StreamerCenter')}
         onNoise={() => toast(speakerOn ? 'Noise reduction on with device AEC' : 'Turn speaker on for clearer voice')}
         onIntro={() => navigation.navigate('StreamerCenter')}
@@ -2388,8 +2885,8 @@ export default function LiveRoomScreen({ navigation, route }) {
           toast(mirrored ? 'Mirror off' : 'Mirror on');
         }}
         onMinimize={() => {
-          setHideChrome(true);
-          toast('Tap the screen edge to show controls again');
+          setShowTools(false);
+          doMinimize();
         }}
         onSound={() => toggleSpeaker()}
         onScreenRec={() => toast('Screen recording is not available on this build')}
@@ -2447,6 +2944,65 @@ export default function LiveRoomScreen({ navigation, route }) {
         onSelectRecipient={(r) => setGiftTarget(r)}
         sending={giftSending}
         error={giftError}
+        onOpenLuckyBoard={() => { setShowGifts(false); setLuckyBoard(true); }}
+      />
+      <LuckyGiftBoard visible={luckyBoard} api={api} onClose={() => setLuckyBoard(false)} />
+      <LuckyResultOverlay result={luckyResult} onDone={() => setLuckyResult(null)} />
+      <LuckyBoxComposer
+        visible={luckyBoxOpen}
+        onClose={() => setLuckyBoxOpen(false)}
+        balance={balance}
+        sending={luckyBoxSending}
+        error={luckyBoxError}
+        onOpenRules={() => setLuckyBoxRules(true)}
+        onOpenHistory={() => { setLuckyBoxOpen(false); setLuckyBoard(true); }}
+        onSend={async (opts) => {
+          if (luckyBoxSending) return;
+          setLuckyBoxSending(true);
+          setLuckyBoxError('');
+          try {
+            await socket.connect(accessToken);
+            const ack = await socket.emit('live:lucky_box_send', {
+              channel,
+              ...opts,
+              senderPic: user?.profile_pic || user?.profilePic,
+            }, 20000);
+            const box = ack?.data || ack;
+            if (box?.id) setActiveLuckyBox(box);
+            setLuckyBoxOpen(false);
+            toast('Lucky box sent');
+            loadWalletAndGifts().catch(() => {});
+          } catch (e) {
+            setLuckyBoxError(e.message || 'Could not send lucky box');
+          } finally {
+            setLuckyBoxSending(false);
+          }
+        }}
+      />
+      <LuckyBoxRules visible={luckyBoxRules} onClose={() => setLuckyBoxRules(false)} />
+      <LuckyBoxClaim
+        visible={luckyBoxClaim}
+        box={activeLuckyBox}
+        meId={meId}
+        claiming={luckyBoxSending}
+        result={luckyClaimResult}
+        onClose={() => setLuckyBoxClaim(false)}
+        onClaim={async (box) => {
+          if (luckyBoxSending) return;
+          setLuckyBoxSending(true);
+          try {
+            await socket.connect(accessToken);
+            const ack = await socket.emit('live:lucky_box_claim', { channel, boxId: box.id }, 20000);
+            const data = ack?.data || ack;
+            setLuckyClaimResult(data);
+            if (data?.prize != null) toast(`Won 🪙 ${Number(data.prize).toLocaleString()}`);
+            loadWalletAndGifts().catch(() => {});
+          } catch (e) {
+            toast(e.message || 'Could not open box');
+          } finally {
+            setLuckyBoxSending(false);
+          }
+        }}
       />
       <RoomPkSheet
         visible={pkPick}
@@ -2476,7 +3032,7 @@ export default function LiveRoomScreen({ navigation, route }) {
             setPkRoomsLoading(false);
           }
         }}
-        onChallenge={async ({ rival, type, durationMinutes, durationSec, random }) => {
+        onChallenge={async ({ rival, type, durationMinutes, durationSec, random, format, allowParty }) => {
           pkMatchCancelRef.current = false;
           setPkMatching(true);
           setPkMinutes(durationMinutes || 5);
@@ -2486,7 +3042,7 @@ export default function LiveRoomScreen({ navigation, route }) {
             setPkRoomsLoading(true);
             let list = [];
             try {
-              const res = await api.get('/live/rooms', { type: 'live', limit: 40 }, { auth: false });
+              const res = await api.get('/live/rooms', { type: allowParty ? undefined : 'live', limit: 40 }, { auth: false });
               list = api.extractList(res).filter((r) => r.channel && r.channel !== channel && (r.hostId || r.host_id));
               setPkRooms(list);
             } catch (_e) {
@@ -2528,6 +3084,8 @@ export default function LiveRoomScreen({ navigation, route }) {
               durationSeconds: durationSec || (durationMinutes || 5) * 60,
               type: type || 'friend',
               mode: type || 'friend',
+              format: format || (type === 'team' ? '3v3' : '1v1'),
+              allowParty: Boolean(allowParty),
             });
             if (pkMatchCancelRef.current) return;
             setPkMatchLabel(`Waiting for ${target.name || 'rival'} to accept…`);
@@ -2568,6 +3126,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
   },
   pkHalf: { flex: 1, overflow: 'hidden', position: 'relative' },
+  pkHalfOn: { borderWidth: 3, borderColor: '#F59E0B' },
   pkBolt: {
     position: 'absolute',
     left: '50%',

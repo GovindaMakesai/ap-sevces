@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { displayPhone } = require('../lib/userPhone');
 const Notification = require('../models/Notification');
 const permissionService = require('./permissionService');
 const coinSellerService = require('./coinSellerService');
@@ -138,7 +139,7 @@ async function submitApplication(
       userId,
       role,
       fullMessage,
-      contactPhone || user.phone || null,
+      contactPhone || displayPhone(user) || null,
       normalizedPromo,
       targetBdUserId,
       agencyName || null,

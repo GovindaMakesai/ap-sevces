@@ -131,14 +131,14 @@
 
   /* Launch promo splash — once per session in native WebView */
   try {
-    if (!sessionStorage.getItem('ap_reality_splash_done_v1')) {
+    if (!sessionStorage.getItem('ap_reality_splash_done_v3')) {
+      document.documentElement.classList.add('ap-launch-splash-pending');
       var splashCss = document.createElement('link');
       splashCss.rel = 'stylesheet';
-      splashCss.href = '/ap-launch-splash.css?v=20260901';
+      splashCss.href = '/ap-launch-splash.css?v=20260903';
       (document.head || html).appendChild(splashCss);
       var splashJs = document.createElement('script');
-      splashJs.src = '/ap-launch-splash.js?v=20260901';
-      splashJs.defer = true;
+      splashJs.src = '/ap-launch-splash.js?v=20260903-antakshari';
       (document.head || html).appendChild(splashJs);
     }
   } catch (_splashErr) {}

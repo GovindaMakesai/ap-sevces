@@ -164,6 +164,98 @@ export function LiveHeader({
   );
 }
 
+/** Premium party header — room ID, room follow heart, viewers */
+export function PartyHeader({
+  hostName,
+  hostPic,
+  roomId,
+  viewers,
+  roomFollowing,
+  roomFollowers,
+  isHost,
+  onHost,
+  onRoomFollow,
+  onRoomInfo,
+  onClose,
+}) {
+  return (
+    <View style={styles.partyHead}>
+      <View style={styles.partyHeadRow}>
+        <Pressable onPress={onHost} style={styles.partyHostChip}>
+          <Avatar uri={hostPic} name={hostName} size={36} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.partyHostName} numberOfLines={1}>{hostName || 'Party'}</Text>
+            <Pressable onPress={onRoomFollow} style={styles.partyHeartRow} hitSlop={6}>
+              <Ionicons
+                name={roomFollowing ? 'heart' : 'heart-outline'}
+                size={13}
+                color={roomFollowing ? '#FF4D6D' : '#fff'}
+              />
+              <Text style={styles.partyHeartN}>{Number(roomFollowers || 0)}</Text>
+              {!isHost && !roomFollowing ? <Text style={styles.partyFollowPlus}>+</Text> : null}
+            </Pressable>
+          </View>
+        </Pressable>
+        <View style={styles.partyHeadRight}>
+          <Pressable onPress={onRoomInfo} hitSlop={8}>
+            <Text style={styles.partyRoomId}>{roomId || 'ID —'}</Text>
+          </Pressable>
+          <Pressable onPress={onRoomInfo} style={styles.partyViewerPill}>
+            <Ionicons name="people" size={12} color="#fff" />
+            <Text style={styles.partyViewerN}>{viewers || 0}</Text>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.partyClose} accessibilityLabel="Leave">
+            <Ionicons name="close" size={18} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+      <View style={styles.partyMetaRow}>
+        <View style={styles.partyMetaPill}>
+          <Ionicons name="flame" size={12} color="#FBBF24" />
+          <Text style={styles.partyMetaT}>Pop 100+</Text>
+        </View>
+        <View style={[styles.partyMetaPill, { flex: 1 }]}>
+          <Ionicons name="musical-notes" size={12} color="#60A5FA" />
+          <View style={styles.partyProgTrack}>
+            <View style={[styles.partyProgFill, { width: '46%' }]} />
+          </View>
+          <Text style={styles.partyMetaT}>45%</Text>
+        </View>
+        <Pressable onPress={onRoomInfo} style={styles.partyMetaPill}>
+          <Ionicons name="document-text-outline" size={12} color="#E9D5FF" />
+          <Text style={styles.partyMetaT}>Rule</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+export function PartyStageBackdrop() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <LinearGradient
+        colors={['#12081F', '#1A0B2E', '#0B1220', '#05070F']}
+        locations={[0, 0.35, 0.72, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(124,58,237,0.18)', 'rgba(37,99,235,0.22)', 'transparent']}
+        start={{ x: 0.5, y: 0.2 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.partyBeam}
+      />
+      <View style={styles.partyMicMark}>
+        <Ionicons name="mic" size={120} color="rgba(226,232,240,0.08)" />
+      </View>
+      <View style={styles.partyFloor}>
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <View key={i} style={[styles.partyFloorLine, { top: i * 18, opacity: 0.12 + i * 0.04 }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function RankBadges({ rank = 'No.0' }) {
   return (
     <View style={styles.badgeRow}>
@@ -187,7 +279,7 @@ export function WishWidgets({ onWish, banner = 'ROOM PK LEAGUE' }) {
   );
 }
 
-export function GifterRail({ seats, host, onPress, speakingKeys, meId }) {
+export function GifterRail({ seats, host, onPress, speakingKeys, meId, hideMic }) {
   const hostId = String(host?.id || '');
   const list = [];
   const seen = new Set();
@@ -216,7 +308,7 @@ export function GifterRail({ seats, host, onPress, speakingKeys, meId }) {
           {u.speaking && !u.muted ? (
             <View style={styles.seatWave}><Equalizer size={10} color="#fbbf24" /></View>
           ) : null}
-          {u.muted ? (
+          {u.muted && !hideMic ? (
             <View style={styles.seatMuteBadge}><Ionicons name="mic-off" size={12} color="#fff" /></View>
           ) : null}
         </Pressable>
@@ -225,7 +317,7 @@ export function GifterRail({ seats, host, onPress, speakingKeys, meId }) {
   );
 }
 
-export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId }) {
+export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId, hostPresent = true }) {
   const hostId = String(host?.id || '');
   const incoming = Array.isArray(seats) ? seats : [];
   const byIndex = new Map();
@@ -237,7 +329,7 @@ export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId }) {
     byIndex.set(raw, s);
   });
   const list = Array.from({ length: 9 }, (_, i) => {
-    if (i === 0 && hostId) {
+    if (i === 0 && hostId && hostPresent) {
       const hostUser = {
         id: hostId,
         userId: hostId,
@@ -265,6 +357,7 @@ export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId }) {
             onPress={() => onSeat?.(s)}
             speakingKeys={speakingKeys}
             meId={meId}
+            premium
           />
         ))}
       </View>
@@ -313,7 +406,7 @@ function SeatPulse({ active, color, children, empty }) {
   );
 }
 
-function SeatBubble({ seat, host, onPress, speakingKeys, meId }) {
+function SeatBubble({ seat, host, onPress, speakingKeys, meId, premium }) {
   const user = seatUser(seat);
   const isHostSeat = Boolean(
     user && (String(user.id || user.userId) === String(host?.id) || user?.isHost || user?.role === 'host')
@@ -326,46 +419,47 @@ function SeatBubble({ seat, host, onPress, speakingKeys, meId }) {
   const giftN = Number(user?.giftScore || user?.gifts || user?.score || seat?.score || 0);
   const name = String(user?.name || user?.displayName || '').trim();
   return (
-    <Pressable onPress={onPress} style={styles.seatCell}>
-      <Text style={styles.seatNum}>{seatNum}</Text>
+    <Pressable onPress={onPress} style={[styles.seatCell, premium && styles.seatCellPremium]}>
+      <Text style={[styles.seatNum, premium && styles.seatNumPremium]}>{seatNum}</Text>
       {isHostSeat ? (
-        <View style={styles.seatHostCrown}><Text style={styles.seatCrown}>👑</Text></View>
+        <View style={styles.seatHostCrown}>
+          <Ionicons name="ribbon" size={14} color="#F5D76E" />
+        </View>
       ) : null}
       {user && giftN >= 0 ? (
         <View style={styles.seatGiftBadge}>
+          <Ionicons name="gift" size={9} color="#fff" />
           <Text style={styles.seatGiftT}>{giftN > 99 ? '99+' : giftN}</Text>
         </View>
       ) : null}
-      <SeatPulse active={speaking && !muted} empty={!user} color={speaking ? '#fbbf24' : vipEmpty ? '#fbbf24' : '#a855f7'}>
+      <SeatPulse active={speaking && !muted} empty={!user} color={speaking ? '#fbbf24' : vipEmpty ? '#fbbf24' : '#7C3AED'}>
         {user ? (
           <View style={styles.seatOcc}>
-            <AvatarFrame
-              uri={mediaUrl(pic)}
-              name={name || 'Guest'}
-              size={48}
-              score={giftN > 0 ? giftN * 1000 : seatNum <= 4 ? 90000 : 12000}
-              rank={seatNum === 1 ? 1 : seatNum <= 4 ? 2 : 3}
-            />
+            <View style={[styles.seatAvRing, speaking && !muted && styles.seatAvRingTalk]}>
+              <Avatar uri={mediaUrl(pic)} name={name || 'Guest'} size={premium ? 52 : 48} />
+            </View>
             {speaking && !muted ? (
               <View style={styles.seatWave}><Equalizer size={11} color="#fbbf24" /></View>
             ) : null}
             {muted ? (
               <View style={styles.seatMuteBadge}><Ionicons name="mic-off" size={13} color="#fff" /></View>
-            ) : null}
+            ) : (
+              <View style={styles.seatMicBadge}><Ionicons name="mic" size={10} color="#fff" /></View>
+            )}
           </View>
         ) : vipEmpty ? (
-          <View style={styles.seatVipEmpty}>
-            <Text style={styles.seatCrown}>👑</Text>
+          <View style={[styles.seatVipEmpty, premium && styles.seatVipEmptyPremium]}>
+            <Ionicons name="trophy" size={28} color="rgba(251,191,36,0.85)" />
           </View>
         ) : (
-          <View style={styles.seatChairEmpty}>
-            <Text style={styles.seatChairEmoji}>🛋️</Text>
+          <View style={[styles.seatChairEmpty, premium && styles.seatChairEmptyPremium]}>
+            <Ionicons name="person" size={22} color="rgba(196,181,253,0.55)" />
             <View style={styles.seatPlus}><Text style={styles.seatPlusT}>+</Text></View>
           </View>
         )}
       </SeatPulse>
       {user ? (
-        <Text style={styles.seatName} numberOfLines={1}>{name || 'Guest'}</Text>
+        <Text style={[styles.seatName, premium && styles.seatNamePremium]} numberOfLines={1}>{name || 'Guest'}</Text>
       ) : (
         <View style={{ height: 16 }} />
       )}
@@ -785,12 +879,15 @@ export function SeatInviteModal({ visible, seconds, onAgree, onCancel }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.centerWrap}>
-        <View style={styles.tipsCard}>
-          <Text style={styles.tipsH}>Seat invite</Text>
-          <Text style={styles.tipsB}>The host invited you to talk. {seconds ? `${seconds}s` : ''}</Text>
-          <View style={styles.tipsRow}>
-            <Pressable onPress={onAgree}><Text style={styles.agree}>Agree</Text></Pressable>
-            <Pressable onPress={onCancel}><Text style={styles.cancel}>Cancel</Text></Pressable>
+        <View style={styles.inviteCard}>
+          <Text style={styles.inviteMsg}>You have invitation to mic .{seconds != null ? `(${seconds}s)` : ''}</Text>
+          <View style={styles.inviteBtns}>
+            <Pressable onPress={onCancel} style={styles.inviteRefuse}>
+              <Text style={styles.inviteRefuseT}>Refuse</Text>
+            </Pressable>
+            <Pressable onPress={onAgree} style={styles.inviteAccept}>
+              <Text style={styles.inviteAcceptT}>Accept</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -966,26 +1063,28 @@ function fmtCount(n) {
   return String(v);
 }
 
-export function MemberActionMenu({ visible, onClose, target, items = [] }) {
+export function MemberActionMenu({ visible, onClose, target, items = [], light }) {
   if (!visible) return null;
   const rows = items.filter((it) => it && it.show !== false);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modWrap} onPress={onClose}>
-        <Pressable style={styles.modMenu} onPress={() => {}}>
-          <Text style={styles.modName} numberOfLines={1}>{target?.name || 'User'}</Text>
+        <Pressable style={[styles.modMenu, light && styles.modMenuLight]} onPress={() => {}}>
+          <Text style={[styles.modName, light && styles.modNameLight]} numberOfLines={1}>{target?.name || 'User'}</Text>
           <ScrollView style={{ maxHeight: 420 }}>
             {rows.map((it) => (
               <Pressable
                 key={it.id || it.label}
                 onPress={() => { it.onPress?.(); if (!it.keepOpen) onClose?.(); }}
-                style={styles.modRow}
+                style={[styles.modRow, light && styles.modRowLight]}
               >
-                <Text style={[styles.modT, it.danger && { color: '#F87171' }]}>{it.label}</Text>
+                <Text style={[styles.modT, light && styles.modTLight, it.danger && { color: '#F87171' }]}>{it.label}</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable onPress={onClose} style={styles.modCancel}><Text style={styles.modCancelT}>Cancel</Text></Pressable>
+          <Pressable onPress={onClose} style={[styles.modCancel, light && styles.modCancelLight]}>
+            <Text style={[styles.modCancelT, light && { color: '#6B7280' }]}>Cancel</Text>
+          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -999,6 +1098,7 @@ export function ToolsMenuSheet({
   canModerate,
   chatLocked,
   onLucky,
+  onLuckyBox,
   onEntry,
   onGiftFx,
   onPhoto,
@@ -1041,7 +1141,6 @@ export function ToolsMenuSheet({
     requestAnimationFrame(() => fn?.());
   };
   const host = isHost || canModerate;
-  const hideCamTools = false;
 
   const ICO = {
     admins: ['#60A5FA', '#1D4ED8'],
@@ -1054,6 +1153,8 @@ export function ToolsMenuSheet({
     intro: ['#34D399', '#047857'],
     pk: ['#FBBF24', '#EC4899'],
     lucky: ['#FBBF24', '#D97706'],
+    luckybox: ['#EF4444', '#B45309'],
+    collection: ['#FB7185', '#BE185D'],
     gamepk: ['#A78BFA', '#7C3AED'],
     gifts: ['#FB7185', '#DB2777'],
     msg: ['#60A5FA', '#2563EB'],
@@ -1087,74 +1188,56 @@ export function ToolsMenuSheet({
     host
       ? {
           title: 'Host Tools',
+          outline: true,
           items: [
-            { id: 'admins', label: 'Admins', icon: 'shield-checkmark', onPress: onAdmins },
-            { id: 'bubble', label: 'Text Bubble', icon: 'chatbubble-ellipses', onPress: onBubble || onEntry },
-            { id: 'fan', label: 'Fan Club', icon: 'heart', onPress: onFanClub },
-            { id: 'data', label: 'Live Data', icon: 'stats-chart', onPress: onLiveData },
-            { id: 'mgmt', label: 'Live Management', icon: 'settings', onPress: onSettings },
-            { id: 'ambient', label: 'Ambient Sound', icon: 'musical-notes', onPress: onMusic },
-            { id: 'record', label: 'Screen Recording', icon: 'radio-button-on', onPress: onScreenRec },
-            { id: 'intro', label: 'Live Stream Introduction', icon: 'card', onPress: onIntro || onSettings },
+            { id: 'admins', label: 'Admins', icon: 'person-add-outline', onPress: onAdmins },
+            { id: 'bubble', label: 'Text Bubble', icon: 'chatbubble-outline', onPress: onBubble || onEntry },
+            { id: 'fan', label: 'Fan Club', icon: 'heart-outline', onPress: onFanClub },
+            { id: 'data', label: 'Live Data', icon: 'stats-chart-outline', onPress: onLiveData },
+            { id: 'mgmt', label: 'Live Management', icon: 'settings-outline', onPress: onSettings },
+            { id: 'ambient', label: 'Ambient Sound', icon: 'musical-notes-outline', onPress: onMusic },
+            { id: 'record', label: 'Screen Recording', icon: 'radio-button-on-outline', onPress: onScreenRec },
+            { id: 'intro', label: 'Live Stream Introduction', icon: 'document-text-outline', onPress: onIntro || onSettings },
           ],
         }
       : null,
     {
-      title: 'Room Play',
-      items: [
-        ...(host ? [{ id: 'pk', label: 'Room PK', icon: 'flash', onPress: onPk, pkMark: true }] : []),
-        { id: 'lucky', label: 'Lucky Packet', icon: 'gift', onPress: onLucky },
-        { id: 'gamepk', label: 'Game PK', icon: 'game-controller', onPress: onGames },
-        { id: 'gifts', label: 'Gifts', icon: 'rose', onPress: onGiftFx },
-      ],
-    },
-    {
       title: 'Basic Tools',
-      items: [
-        { id: 'msg', label: 'Message', icon: 'mail', onPress: onMessages },
-        ...(!hideCamTools && host
-          ? [
-              { id: 'flip', label: 'Switch Camera', icon: 'camera-reverse', onPress: onFlipCam || onCall },
-              { id: 'beauty', label: 'Beauty', icon: 'color-wand', onPress: onBeauty || onEffects },
-              { id: 'mirror', label: 'Mirror', icon: 'copy', onPress: onMirror },
-            ]
-          : []),
-        { id: 'share', label: 'Share', icon: 'share-social', onPress: onShare },
-        { id: 'effects', label: 'Effect & Msg', icon: 'options', onPress: onEffects || onBeauty || onEntry },
-        ...(host ? [{ id: 'noise', label: 'Noise Reduction (3A)', icon: 'pulse', onPress: onNoise }] : []),
-        { id: 'sound', label: 'Sound', icon: 'volume-high', onPress: onSound || onMusic },
-        { id: 'music', label: 'Music', icon: 'musical-notes', onPress: onMusic },
-        { id: 'minimize', label: 'Minimize', icon: 'contract', onPress: onMinimize },
-        ...(host ? [{ id: 'bg', label: 'Background', icon: 'image', onPress: onBackground }] : []),
-        ...(host
-          ? [
-              { id: 'muteall', label: chatLocked ? 'Unmute all chat' : 'Mute all chat', icon: 'chatbox', onPress: onMuteAllChat },
-              { id: 'clear', label: 'Clear chat', icon: 'trash', onPress: onClearChat },
-            ]
-          : []),
-        { id: 'photo', label: 'Share photo', icon: 'images', onPress: onPhoto },
-        { id: 'report', label: 'Report', icon: 'flag', onPress: onReport },
-      ],
+      outline: true,
+      items: host
+        ? [
+            { id: 'msg', label: 'Message', icon: 'mail-outline', onPress: onMessages },
+            { id: 'flip', label: 'Switch Camera', icon: 'camera-reverse-outline', onPress: onFlipCam || onCall },
+            { id: 'beauty', label: 'Beauty', icon: 'sparkles-outline', onPress: onBeauty || onEffects },
+            { id: 'mirror', label: 'Mirror', icon: 'copy-outline', onPress: onMirror },
+            { id: 'share', label: 'Share', icon: 'share-outline', onPress: onShare },
+            { id: 'effects', label: 'Effect & Msg', icon: 'options-outline', onPress: onEffects || onBeauty },
+            { id: 'noise', label: 'Noise Reduction (3A)', icon: 'pulse-outline', onPress: onNoise, badge: 'On' },
+          ]
+        : [
+            { id: 'msg', label: 'Message', icon: 'mail-outline', onPress: onMessages },
+            { id: 'sound', label: 'Sound', icon: 'volume-high-outline', onPress: onSound || onMusic },
+            { id: 'share', label: 'Share', icon: 'share-outline', onPress: onShare },
+            { id: 'report', label: 'Report', icon: 'alert-circle-outline', onPress: onReport },
+            { id: 'effects', label: 'Effect & Msg', icon: 'options-outline', onPress: onEffects },
+            { id: 'minimize', label: 'Minimize', icon: 'contract-outline', onPress: onMinimize },
+          ],
     },
     {
       title: 'Features Center',
       items: [
         { id: 'rank', label: 'Rank', icon: 'trophy', onPress: onRankings },
-        { id: 'wallet', label: 'Rewards', icon: 'diamond', onPress: onWallet },
+        ...(host ? [{ id: 'pk', label: 'PK', icon: 'flash', onPress: onPk, pkMark: true }] : []),
+        { id: 'wallet', label: 'Rewards', icon: 'cash', onPress: onWallet },
         { id: 'store', label: 'Store', icon: 'bag', onPress: onStore },
-        { id: 'vip', label: 'VIP', icon: 'ribbon', onPress: onVip },
+        { id: 'vip', label: 'VIP', icon: 'diamond', onPress: onVip },
+        { id: 'gifts', label: 'Gift Center', icon: 'gift', onPress: onGiftFx },
         { id: 'backpack', label: 'Backpack', icon: 'briefcase', onPress: onBackpack || onStore },
-        { id: 'gallery', label: 'Gift Gallery', icon: 'images', onPress: onGiftFx },
-        { id: 'wish', label: 'Gift Wish', icon: 'star', onPress: onGiftWish || onLucky },
+        { id: 'gallery', label: 'Gift Gallery', icon: 'storefront', onPress: onGiftFx },
+        { id: 'luckybox', label: 'Lucky Box', icon: 'cube', onPress: onLuckyBox || onLucky },
+        { id: 'collection', label: 'Gift Collection', icon: 'albums', onPress: onLucky },
         { id: 'trade', label: 'Coins Trading', icon: 'swap-horizontal', onPress: onWallet },
-        ...(host ? [{ id: 'center', label: 'Streamer Center', icon: 'radio', onPress: onStreamerCenter }] : []),
-      ],
-    },
-    {
-      title: 'Games',
-      items: [
-        { id: 'games', label: 'Game Center', icon: 'game-controller', onPress: onGames },
-        { id: 'lucky2', label: 'Lucky Gifts', icon: 'gift', onPress: onLucky },
+        { id: 'wish', label: 'Gift Wish', icon: 'star', onPress: onGiftWish || onLucky },
       ],
     },
   ].filter(Boolean);
@@ -1179,6 +1262,14 @@ export function ToolsMenuSheet({
                     const colors = ICO[it.id] || ['#64748B', '#334155'];
                     return (
                       <Pressable key={it.id} onPress={() => go(it.onPress)} style={styles.toolCell}>
+                        {sec.outline ? (
+                          <View style={styles.toolOutline}>
+                            <Ionicons name={it.icon} size={22} color="#fff" />
+                            {it.badge ? (
+                              <View style={styles.toolOnBadge}><Text style={styles.toolOnBadgeT}>{it.badge}</Text></View>
+                            ) : null}
+                          </View>
+                        ) : (
                         <LinearGradient colors={colors} style={styles.toolIco}>
                           {it.pkMark ? (
                             <View style={styles.pkMark}>
@@ -1189,6 +1280,7 @@ export function ToolsMenuSheet({
                             <Ionicons name={it.icon} size={20} color="#fff" />
                           )}
                         </LinearGradient>
+                        )}
                         <Text style={styles.toolL} numberOfLines={2}>{it.label}</Text>
                       </Pressable>
                     );
@@ -1215,41 +1307,136 @@ export function nowUpdateLabel() {
   return `${hh}:${mm}(GMT+5:30)`;
 }
 
-export function uniquePeople(chat, host, user) {
+export function activeRoomPeople({ host, members = [], seats = [], user } = {}) {
   const map = new Map();
   const add = (id, name, pic, extra = {}) => {
     const uid = String(id || '').trim();
     const nm = String(name || '').trim();
     const photo = pic || extra.pic;
-    if (!uid && !nm) return;
-    if (uid && map.has(uid)) {
+    if (!uid) return;
+    if (map.has(uid)) {
       const v = map.get(uid);
       map.set(uid, { ...v, name: v.name || nm, pic: v.pic || photo, ...extra });
       return;
     }
-    /* Merge nameless id collisions only — never merge two different user ids by display name */
-    if (!uid) {
-      for (const [k, v] of map) {
-        if (String(v.name || '').toLowerCase() === nm.toLowerCase() && (!v.id || v.id === nm)) {
-          map.set(k, { ...v, pic: v.pic || photo, ...extra });
-          return;
-        }
-      }
-      map.set(nm, { id: nm, name: nm || 'User', pic: photo, ...extra });
-      return;
-    }
     map.set(uid, { id: uid, name: nm || 'User', pic: photo, ...extra });
   };
-  if (host?.name || host?.id) add(host.id, host.name, host.pic, { level: 1, svip: 0, crown: true });
-  chat.forEach((m) => {
-    if (m.system || m.user === 'System') return;
-    add(m.userId, m.user, m.pic, { level: 1 });
+  (Array.isArray(members) ? members : []).forEach((m) => {
+    const id = m?.userId || m?.id || m?.user?.id;
+    if (!id) return;
+    add(id, m?.displayName || m?.name || m?.user?.name, m?.profilePic || m?.profile_pic || m?.user?.profilePic, {
+      level: m?.level || 1,
+      role: m?.isAdmin || m?.role === 'admin' ? 'Live admin' : m?.onSeat ? 'On seat' : 'In room',
+      isAdmin: Boolean(m?.isAdmin || m?.role === 'admin'),
+    });
   });
-  if (user?.id) {
+  (Array.isArray(seats) ? seats : []).forEach((s) => {
+    const u = s?.user;
+    if (!u) return;
+    const id = u.id || u.userId;
+    if (!id) return;
+    add(id, u.name || u.displayName, u.profilePic || u.profile_pic || u.pic, {
+      level: u.level || 22,
+      role: 'On seat',
+      isAdmin: false,
+    });
+  });
+  if (user?.id && map.has(String(user.id))) {
     const nm = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.first_name;
     add(user.id, nm, user.profile_pic || user.profilePic, { level: 1 });
   }
+  if (host?.id && map.has(String(host.id))) {
+    add(host.id, host.name, host.pic, { level: 1, svip: 0, crown: true });
+  }
   return Array.from(map.values());
+}
+
+/** @deprecated chat-derived lists accumulate leavers — use activeRoomPeople */
+export function uniquePeople(chat, host, user) {
+  return activeRoomPeople({ host, members: [], seats: [], user });
+}
+
+export function RoomFollowSheet({
+  visible,
+  onClose,
+  hostName,
+  hostPic,
+  roomId,
+  live,
+  following,
+  onFollow,
+  onShare,
+  onReport,
+  onCopyId,
+  onOpenProfile,
+  members = [],
+  tab = 'member',
+  setTab,
+}) {
+  return (
+    <AnimatedSheet visible={visible} onClose={onClose} height={0.62}>
+      <View style={styles.roomSheet}>
+        <View style={styles.roomSheetHead}>
+          <Pressable onPress={onOpenProfile}>
+            <Avatar uri={hostPic} name={hostName} size={56} style={styles.roomSheetAv} />
+          </Pressable>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.roomSheetName} numberOfLines={1}>{hostName || 'Party'}</Text>
+              {live ? (
+                <View style={styles.roomLiveBadge}>
+                  <Ionicons name="videocam" size={10} color="#fff" />
+                  <Text style={styles.roomLiveT}>Party</Text>
+                </View>
+              ) : null}
+            </View>
+            <Pressable onPress={onCopyId} style={styles.roomIdRow}>
+              <Text style={styles.roomSheetId}>{roomId || 'ID —'}</Text>
+              <Ionicons name="copy-outline" size={13} color="#9CA3AF" />
+            </Pressable>
+          </View>
+          <Pressable onPress={onFollow} style={[styles.roomFollowBtn, following && styles.roomFollowBtnOn]}>
+            <Text style={styles.roomFollowT}>{following ? 'Following' : '+ Follow'}</Text>
+          </Pressable>
+          <Pressable onPress={onShare} style={styles.roomIcoBtn}>
+            <Ionicons name="share-outline" size={16} color="#E5E7EB" />
+          </Pressable>
+          <Pressable onPress={onReport} style={styles.roomIcoBtn}>
+            <Ionicons name="warning-outline" size={16} color="#E5E7EB" />
+          </Pressable>
+        </View>
+        <View style={styles.roomTabs}>
+          <Pressable onPress={() => setTab?.('profile')} style={styles.roomTab}>
+            <Text style={[styles.roomTabT, tab === 'profile' && styles.roomTabOn]}>Profile</Text>
+            {tab === 'profile' ? <View style={styles.roomTabLine} /> : null}
+          </Pressable>
+          <Pressable onPress={() => setTab?.('member')} style={styles.roomTab}>
+            <Text style={[styles.roomTabT, tab === 'member' && styles.roomTabOn]}>Member</Text>
+            {tab === 'member' ? <View style={styles.roomTabLine} /> : null}
+          </Pressable>
+        </View>
+        {tab === 'profile' ? (
+          <Text style={styles.roomProfileHint}>Follow this party room to see it in your list and get notified when it is live.</Text>
+        ) : (
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            {(members || []).length ? members.map((m) => (
+              <View key={m.id || m.userId} style={styles.roomMemRow}>
+                <Avatar uri={mediaUrl(m.profilePic || m.pic)} name={m.name} size={40} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.roomMemName} numberOfLines={1}>{m.name}</Text>
+                  <View style={styles.roomMemBadges}>
+                    <View style={styles.roomLv}><Text style={styles.roomLvT}>Lv.{m.level || 1}</Text></View>
+                  </View>
+                </View>
+              </View>
+            )) : (
+              <Text style={styles.roomEmpty}>No room followers yet. Be the first.</Text>
+            )}
+          </ScrollView>
+        )}
+      </View>
+    </AnimatedSheet>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1268,6 +1455,61 @@ const styles = StyleSheet.create({
   hostId: { color: 'rgba(255,255,255,0.75)', fontSize: 10 },
   follow: { backgroundColor: LIVE_PINK, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   followT: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  partyHead: { paddingHorizontal: 10, gap: 8 },
+  partyHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partyHostChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(8,6,18,0.55)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  partyHostName: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  partyHeartRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  partyHeartN: { color: 'rgba(255,255,255,0.88)', fontSize: 11, fontWeight: '700' },
+  partyFollowPlus: { color: '#FF4D6D', fontWeight: '800', fontSize: 11 },
+  partyHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partyRoomId: { color: 'rgba(255,255,255,0.92)', fontWeight: '700', fontSize: 11, letterSpacing: 0.3 },
+  partyViewerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(8,6,18,0.5)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  partyViewerN: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  partyClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(8,6,18,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partyMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 2 },
+  partyMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(8,6,18,0.42)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  partyMetaT: { color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 10 },
+  partyProgTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
+  partyProgFill: { height: 4, borderRadius: 2, backgroundColor: '#60A5FA' },
+  partyBeam: { position: 'absolute', left: '18%', right: '18%', top: '22%', bottom: 80, borderRadius: 80 },
+  partyMicMark: { position: 'absolute', alignSelf: 'center', top: '28%', opacity: 1 },
+  partyFloor: { position: 'absolute', left: 0, right: 0, bottom: 120, height: 110 },
+  partyFloorLine: { position: 'absolute', left: 24, right: 24, height: 1, backgroundColor: '#60A5FA' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   viewerBtn: {
     flexDirection: 'row',
@@ -1317,6 +1559,12 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     overflow: 'hidden',
   },
+  seatCellPremium: {
+    backgroundColor: 'rgba(12, 10, 28, 0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.18)',
+    borderRadius: 16,
+  },
   seatNum: {
     position: 'absolute',
     left: 8,
@@ -1326,6 +1574,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     zIndex: 2,
   },
+  seatNumPremium: { color: 'rgba(226,232,240,0.7)', fontSize: 11 },
   seatGiftBadge: {
     position: 'absolute',
     right: 6,
@@ -1338,6 +1587,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
     zIndex: 2,
+    flexDirection: 'row',
+    gap: 2,
   },
   seatGiftT: { color: '#fff', fontSize: 10, fontWeight: '800' },
   seatOcc: { alignItems: 'center', justifyContent: 'center' },
@@ -1373,6 +1624,86 @@ const styles = StyleSheet.create({
   },
   seatPlusT: { color: '#6d28d9', fontWeight: '900', fontSize: 16, marginTop: -1 },
   seatName: { color: '#fff', fontSize: 11, marginTop: 4, fontWeight: '700', maxWidth: '92%', textAlign: 'center' },
+  seatNamePremium: { color: 'rgba(248,250,252,0.92)', fontSize: 10, letterSpacing: 0.2 },
+  seatAvRing: {
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.22)',
+    padding: 1.5,
+  },
+  seatAvRingTalk: { borderColor: '#FBBF24', shadowColor: '#FBBF24', shadowOpacity: 0.7, shadowRadius: 8 },
+  seatMicBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(15,23,42,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seatVipEmptyPremium: {
+    backgroundColor: 'rgba(251,191,36,0.08)',
+    borderColor: 'rgba(251,191,36,0.28)',
+    borderRadius: 32,
+    width: 56,
+    height: 56,
+  },
+  seatChairEmptyPremium: {
+    backgroundColor: 'rgba(76,29,149,0.28)',
+    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.22)',
+  },
+  roomSheet: { backgroundColor: '#141628', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, flex: 1 },
+  roomSheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  roomSheetAv: { borderRadius: 12 },
+  roomSheetName: { color: '#fff', fontWeight: '800', fontSize: 16, maxWidth: 140 },
+  roomLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EC4899',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  roomLiveT: { color: '#fff', fontWeight: '800', fontSize: 10 },
+  roomIdRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  roomSheetId: { color: '#9CA3AF', fontWeight: '600', fontSize: 12 },
+  roomFollowBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  roomFollowBtnOn: { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'transparent' },
+  roomFollowT: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  roomIcoBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roomTabs: { flexDirection: 'row', gap: 22, marginTop: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  roomTab: { paddingBottom: 8 },
+  roomTabT: { color: '#6B7280', fontWeight: '700', fontSize: 14 },
+  roomTabOn: { color: '#fff' },
+  roomTabLine: { height: 2, backgroundColor: '#fff', marginTop: 6, borderRadius: 1 },
+  roomProfileHint: { color: '#9CA3AF', marginTop: 16, lineHeight: 20 },
+  roomMemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  roomMemName: { color: '#fff', fontWeight: '700' },
+  roomMemBadges: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  roomLv: { backgroundColor: '#2563EB', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  roomLvT: { color: '#fff', fontWeight: '800', fontSize: 10 },
+  roomEmpty: { color: '#6B7280', textAlign: 'center', marginTop: 28 },
   seatRowCenter: { flexDirection: 'row', justifyContent: 'center', gap: 28, marginBottom: 10 },
   seatGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 },
   seatItem: { width: 72, alignItems: 'center' },
@@ -1702,4 +2033,35 @@ const styles = StyleSheet.create({
   pkMarkK: { backgroundColor: '#EC4899', color: '#fff', fontWeight: '900', fontSize: 11, paddingHorizontal: 4, paddingVertical: 1 },
   giftLine: { backgroundColor: 'rgba(232,144,32,0.14)', borderRadius: 12, paddingHorizontal: 6, paddingVertical: 4 },
   giftMsg: { color: '#FDE68A', fontWeight: '700' },
+  toolOutline: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolOnBadge: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    backgroundColor: '#22C55E',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  toolOnBadgeT: { color: '#fff', fontWeight: '800', fontSize: 8 },
+  inviteCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '84%' },
+  inviteMsg: { color: '#111827', fontWeight: '700', fontSize: 16, textAlign: 'center', marginBottom: 18 },
+  inviteBtns: { flexDirection: 'row', gap: 12 },
+  inviteRefuse: { flex: 1, backgroundColor: '#E5E7EB', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  inviteRefuseT: { color: '#374151', fontWeight: '800' },
+  inviteAccept: { flex: 1, backgroundColor: '#F97316', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  inviteAcceptT: { color: '#fff', fontWeight: '800' },
+  modMenuLight: { backgroundColor: '#fff' },
+  modNameLight: { color: '#22D3EE', fontWeight: '800' },
+  modRowLight: { borderTopColor: '#E5E7EB' },
+  modTLight: { color: '#111827' },
+  modCancelLight: { backgroundColor: '#F3F4F6' },
 });

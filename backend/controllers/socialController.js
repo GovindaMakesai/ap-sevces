@@ -240,6 +240,31 @@ async function listGiftCatalog(_req, res) {
   res.json({ success: true, data: rows });
 }
 
+async function luckyGiftHistory(req, res) {
+  try {
+    const luckyGiftService = require('../services/luckyGiftService');
+    const data = await luckyGiftService.listHistory(uid(req), {
+      limit: clampLimit(req.query.limit, { fallback: 40 }),
+      offset: clampOffset(req.query.offset),
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message || 'Failed to load lucky history' });
+  }
+}
+
+async function luckyGiftRank(req, res) {
+  try {
+    const luckyGiftService = require('../services/luckyGiftService');
+    const data = await luckyGiftService.listRank({
+      limit: clampLimit(req.query.limit, { fallback: 50 }),
+    });
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message || 'Failed to load lucky rank' });
+  }
+}
+
 async function listCoinSellers(_req, res) {
   const data = await coinSellerService.listActiveSellers();
   res.json({ success: true, data });
@@ -410,9 +435,14 @@ async function getPostLikes(req, res) {
 
 async function commentPost(req, res) {
   try {
-    const data = await socialFeedService.addComment(req.params.postId, uid(req), req.body.body, {
-      parentId: req.body.parent_id || req.body.parentId || null,
-    });
+    const data = await socialFeedService.addComment(
+      req.params.postId,
+      uid(req),
+      req.body.body || req.body.text || req.body.content,
+      {
+        parentId: req.body.parent_id || req.body.parentId || null,
+      }
+    );
     res.status(201).json({ success: true, data });
   } catch (e) {
     res.status(400).json({ success: false, message: e.message });
@@ -421,7 +451,7 @@ async function commentPost(req, res) {
 
 async function getComments(req, res) {
   const data = await socialFeedService.listComments(req.params.postId, {
-    limit: clampLimit(req.query.limit, { fallback: 50 }),
+    limit: clampLimit(req.query.limit, { fallback: 100 }),
     offset: clampOffset(req.query.offset),
     viewerId: uid(req),
   });
@@ -623,6 +653,8 @@ module.exports = {
   creatorBadges,
   creatorAnalytics,
   listGiftCatalog,
+  luckyGiftHistory,
+  luckyGiftRank,
   listCoinSellers,
   buyFromSeller,
   uploadSellerProof,

@@ -7,7 +7,16 @@ const { sanitizePublicText } = require('../lib/safeText');
 class User {
     // Create a new user
     static async create(userData) {
-        const { email, phone, password, first_name, last_name, role = 'customer', gender = null } = userData;
+        const {
+            email,
+            phone,
+            password,
+            first_name,
+            last_name,
+            role = 'customer',
+            gender = null,
+            phone_provided = null,
+        } = userData;
         const normalizedGender = User.normalizeGender(gender);
         
         // Hash password
@@ -15,15 +24,18 @@ class User {
         const password_hash = await bcrypt.hash(password, salt);
         const display_id = await allocateDisplayId();
         
+        await User.ensurePhonePrivacyColumns();
+        const resolvedPhoneProvided = phone_provided == null ? true : Boolean(phone_provided);
+
         const query = `
-            INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id, email, phone, first_name, last_name, role, gender, display_id, created_at
+            INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id, phone_provided)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, email, phone, first_name, last_name, role, gender, display_id, phone_provided, created_at
         `;
         
         const safeFirst = sanitizePublicText(first_name, 80) || 'User';
         const safeLast = sanitizePublicText(last_name, 80);
-        const values = [email, phone, password_hash, safeFirst, safeLast, role, normalizedGender, display_id];
+        const values = [email, phone, password_hash, safeFirst, safeLast, role, normalizedGender, display_id, resolvedPhoneProvided];
         
         try {
             const result = await db.query(query, values);
@@ -33,10 +45,10 @@ class User {
                 // Rare collision — retry once with a new ID
                 const retryId = await allocateDisplayId();
                 const retry = await db.query(
-                    `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                     RETURNING id, email, phone, first_name, last_name, role, gender, display_id, created_at`,
-                    [email, phone, password_hash, safeFirst, safeLast, role, normalizedGender, retryId]
+                    `INSERT INTO users (email, phone, password_hash, first_name, last_name, role, gender, display_id, phone_provided)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                     RETURNING id, email, phone, first_name, last_name, role, gender, display_id, phone_provided, created_at`,
+                    [email, phone, password_hash, safeFirst, safeLast, role, normalizedGender, retryId, resolvedPhoneProvided]
                 );
                 return retry.rows[0];
             }
@@ -69,7 +81,8 @@ class User {
     static async findById(id) {
         const query = `
             SELECT id, email, phone, first_name, last_name, profile_pic,
-                   role, is_verified, gender, display_id, created_at, updated_at
+                   role, is_verified, gender, display_id, provider, provider_id,
+                   phone_provided, created_at, updated_at
             FROM users WHERE id = $1
         `;
         const result = await db.query(query, [id]);
@@ -97,7 +110,10 @@ class User {
             const digits = String(fields.phone || '').replace(/\D/g, '');
             let phone = digits;
             if (digits.length === 12 && digits.startsWith('91')) phone = digits.slice(2);
-            if (/^[6-9]\d{9}$/.test(phone)) allowed.phone = phone;
+            if (/^[6-9]\d{9}$/.test(phone)) {
+                allowed.phone = phone;
+                allowed.phone_provided = true;
+            }
         }
         if (fields.gender !== undefined) {
             allowed.gender = User.normalizeGender(fields.gender);
@@ -157,6 +173,31 @@ class User {
             ADD COLUMN IF NOT EXISTS name VARCHAR(255)
         `);
         User._googleColsReady = true;
+        await User.ensurePhonePrivacyColumns();
+    }
+
+    static async ensurePhonePrivacyColumns() {
+        if (User._phonePrivacyReady) return;
+        await db.query(`
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS phone_provided BOOLEAN DEFAULT FALSE
+        `);
+        await db.query(`
+            UPDATE users
+            SET phone_provided = TRUE
+            WHERE provider IS NULL AND COALESCE(phone, '') <> ''
+        `);
+        const { matchesOAuthPhonePlaceholder } = require('../lib/userPhone');
+        const rows = await db.query(
+            `SELECT id, phone, provider_id FROM users
+             WHERE provider IS NOT NULL AND COALESCE(phone_provided, FALSE) = FALSE`
+        );
+        for (const row of rows.rows) {
+            if (row.phone && row.provider_id && !matchesOAuthPhonePlaceholder(row.phone, row.provider_id)) {
+                await db.query(`UPDATE users SET phone_provided = TRUE WHERE id = $1`, [row.id]);
+            }
+        }
+        User._phonePrivacyReady = true;
     }
 
     static async setProvider(id, provider, providerId, name) {

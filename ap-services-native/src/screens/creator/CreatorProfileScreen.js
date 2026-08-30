@@ -1,6 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
+  Dimensions,
+  FlatList,
   Image,
   Pressable,
   ScrollView,
@@ -10,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -24,9 +25,13 @@ import GiftSheet from '../../components/GiftSheet';
 import GiftThumb from '../../components/GiftThumb';
 import { resolveGiftAnim } from '../../config/giftAnims';
 import { ProfileMediaSection } from '../../components/PostGrid';
+import ProfileImageViewer from '../../components/ProfileImageViewer';
 import { formatUserDisplayId } from '../../lib/roles';
+import { formatInr, priceLabel, providerName } from '../../lib/servicesMarket';
 import { profileCacheGet, profileCacheSet } from '../../lib/perf';
 import { shouldRefresh } from '../../lib/queryCache';
+import { filePart, pickMedia } from '../../lib/pickMedia';
+import { newClientRequestId } from '../../lib/clientRequestId';
 
 function genderLabel(g) {
   const v = String(g || '').toLowerCase();
@@ -53,11 +58,17 @@ export default function CreatorProfileScreen({ route, navigation }) {
   const [posts, setPosts] = useState(bootCache?.posts || []);
   const [following, setFollowing] = useState(Boolean(bootCache?.following));
   const [tab, setTab] = useState('data');
+  const [pro, setPro] = useState(null);
   const [showGifts, setShowGifts] = useState(false);
+  const [giftSending, setGiftSending] = useState(false);
+  const giftLock = useRef(false);
   const [showMore, setShowMore] = useState(false);
   const [gifts, setGifts] = useState([]);
   const [balance, setBalance] = useState(0);
   const [coverIdx, setCoverIdx] = useState(0);
+  const [viewer, setViewer] = useState({ visible: false, uris: [], index: 0 });
+  const coverListRef = useRef(null);
+  const coverW = Dimensions.get('window').width;
   const lastFetch = useRef(0);
 
   const load = useCallback(async (opts = {}) => {
@@ -71,7 +82,7 @@ export default function CreatorProfileScreen({ route, navigation }) {
     }
     try {
       const [panelRes, engRes] = await Promise.all([
-        api.get(`/social/creators/${userId}/profile-panel`, null, { auth: false, cacheTtlMs: 45000 }),
+        api.get(`/social/creators/${userId}/profile-panel`, null, { auth: false, cacheTtlMs: opts.force ? 0 : 45000 }),
         api.get(`/social/creators/${userId}/engagement`, null, { auth: false, cacheTtlMs: 30000 }).catch(() => ({})),
       ]);
       const p = api.unwrap(panelRes);
@@ -110,6 +121,7 @@ export default function CreatorProfileScreen({ route, navigation }) {
       }).catch(() => {});
     }
     if (!mine) api.post(`/social/profile/${userId}/visit`).catch(() => {});
+    api.get(`/workers/user/${userId}`, null, { auth: false }).then((r) => setPro(api.unwrap(r))).catch(() => setPro(null));
   }, [api, mine, passedName, userId]);
 
   useFocusEffect(
@@ -133,7 +145,8 @@ export default function CreatorProfileScreen({ route, navigation }) {
   const display = panel.displayName || engagement?.displayName || passedName || 'Creator';
   const pic = mediaUrl(panel.profilePic || engagement?.profilePic);
   const album = panel.album || [];
-  const cover = mediaUrl(album[coverIdx]?.url || album[0]?.url || panel.profilePic);
+  const coverSlides = album.length ? album : panel.profilePic ? [{ url: panel.profilePic }] : [];
+  const cover = mediaUrl(coverSlides[coverIdx]?.url || coverSlides[0]?.url || panel.profilePic);
   const displayId = formatUserDisplayId(engagement || panel) || panel.displayId || '—';
   const friends = panel.friendsCount || 0;
   const followingN = engagement?.following ?? panel.following ?? 0;
@@ -169,20 +182,41 @@ export default function CreatorProfileScreen({ route, navigation }) {
     }
   };
 
-  const sendGift = async (gift, qty) => {
+  const sendGift = async (gift, qty, opts = {}) => {
+    if (giftLock.current) return;
+    giftLock.current = true;
+    setGiftSending(true);
     try {
       const cost = Number(gift.coin_cost || gift.cost || 0) * qty;
+      const clientRequestId = opts.clientRequestId || newClientRequestId('gift');
       await api.post('/wallet/gifts', {
         receiverId: userId,
         giftType: gift.slug || gift.name || 'gift',
         coinAmount: cost,
         qty,
+        clientRequestId,
+        client_request_id: clientRequestId,
       });
       setShowGifts(false);
       load();
     } catch (e) {
       Alert.alert('Gift failed', e.message);
+    } finally {
+      giftLock.current = false;
+      setGiftSending(false);
     }
+  };
+
+  const coverUris = coverSlides.map((item) => mediaUrl(item.url)).filter(Boolean);
+
+  const openCoverViewer = (idx = coverIdx) => {
+    if (!coverUris.length) return;
+    setViewer({ visible: true, uris: coverUris, index: Math.max(0, Math.min(coverUris.length - 1, idx)) });
+  };
+
+  const openAvatarViewer = () => {
+    if (!pic) return;
+    setViewer({ visible: true, uris: [pic], index: 0 });
   };
 
   const addCover = async () => {
@@ -190,16 +224,18 @@ export default function CreatorProfileScreen({ route, navigation }) {
       Alert.alert('Album full', 'Maximum 6 background photos');
       return;
     }
-    const pick = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (pick.canceled) return;
-    const asset = pick.assets[0];
+    const asset = await pickMedia('image');
+    if (!asset) return;
+    const part = filePart(asset, 'cover.jpg');
+    if (!part) return;
     const form = new FormData();
-    form.append('photo', { uri: asset.uri, name: 'cover.jpg', type: asset.mimeType || 'image/jpeg' });
+    form.append('photo', part);
     try {
       await api.post('/auth/profile/album', form);
-      load();
+      await load({ force: true });
+      Alert.alert('Added', 'Cover photo added to your album');
     } catch (e) {
-      Alert.alert('Upload failed', e.message);
+      Alert.alert('Upload failed', e.message || 'Could not add cover photo');
     }
   };
 
@@ -221,35 +257,68 @@ export default function CreatorProfileScreen({ route, navigation }) {
     <View style={styles.root}>
       <ScrollView>
         <View style={styles.cover}>
-          {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} /> : (
-            <LinearGradient colors={['#0d4f4a', '#061a1a']} style={StyleSheet.absoluteFill} />
-          )}
-          {album.length > 1 ? (
-            <View style={styles.dots}>
-              {album.map((_, i) => (
-                <Pressable key={i} onPress={() => setCoverIdx(i)} style={[styles.dot, coverIdx === i && styles.dotOn]} />
-              ))}
-            </View>
-          ) : null}
-          <View style={[styles.coverBtns, { top: insets.top + 8 }]}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}><Text style={styles.iconT}>‹</Text></Pressable>
-            <Text style={styles.headerTitle} numberOfLines={1}>{display}</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {!mine ? (
-                <Pressable onPress={() => navigation.navigate('Store')} style={styles.iconBtn}><Text>🎁</Text></Pressable>
-              ) : (
-                <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.editPill}>
-                  <Text style={styles.editT}>✎ {panel.profileCompletion != null ? `${panel.profileCompletion}%` : 'Edit'}</Text>
+          {coverSlides.length ? (
+            <FlatList
+              ref={coverListRef}
+              data={coverSlides}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              style={StyleSheet.absoluteFill}
+              keyExtractor={(item, i) => String(item.id || item.url || i)}
+              onMomentumScrollEnd={(e) => {
+                const i = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, coverW));
+                setCoverIdx(Math.max(0, Math.min(coverSlides.length - 1, i)));
+              }}
+              renderItem={({ item, index: slideIdx }) => (
+                <Pressable onPress={() => openCoverViewer(slideIdx)} style={{ width: coverW, height: 220 }}>
+                  <Image
+                    source={{ uri: mediaUrl(item.url) }}
+                    style={{ width: coverW, height: 220 }}
+                    resizeMode="contain"
+                  />
                 </Pressable>
               )}
-              <Pressable onPress={more} style={styles.iconBtn}><Text style={styles.iconT}>⋯</Text></Pressable>
+            />
+          ) : (
+            <LinearGradient colors={['#0d4f4a', '#061a1a']} style={StyleSheet.absoluteFill} />
+          )}
+          <LinearGradient colors={['transparent', 'rgba(6,26,26,0.55)']} style={styles.coverFade} pointerEvents="none" />
+          <View style={styles.coverOverlay} pointerEvents="box-none">
+            {coverSlides.length > 1 ? (
+              <View style={styles.dots} pointerEvents="none">
+                {coverSlides.map((_, i) => (
+                  <View key={i} style={[styles.dot, coverIdx === i && styles.dotOn]} />
+                ))}
+              </View>
+            ) : null}
+            {cover ? (
+              <Pressable onPress={() => openCoverViewer(coverIdx)} style={styles.coverThumb}>
+                <Image source={{ uri: cover }} style={styles.coverThumbImg} resizeMode="cover" />
+              </Pressable>
+            ) : null}
+            <View style={[styles.coverBtns, { top: insets.top + 8 }]} pointerEvents="box-none">
+              <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}><Text style={styles.iconT}>‹</Text></Pressable>
+              <Text style={styles.headerTitle} numberOfLines={1}>{display}</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {!mine ? (
+                  <Pressable onPress={() => navigation.navigate('Store')} style={styles.iconBtn}><Text>🎁</Text></Pressable>
+                ) : (
+                  <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.editPill}>
+                    <Text style={styles.editT}>✎ {panel.profileCompletion != null ? `${panel.profileCompletion}%` : 'Edit'}</Text>
+                  </Pressable>
+                )}
+                <Pressable onPress={more} style={styles.iconBtn}><Text style={styles.iconT}>⋯</Text></Pressable>
+              </View>
             </View>
+            {mine ? (
+              <Pressable onPress={addCover} style={styles.coverAdd} hitSlop={8}>
+                <Text style={styles.coverAddT}>+</Text>
+              </Pressable>
+            ) : null}
           </View>
-          {mine ? (
-            <Pressable onPress={addCover} style={styles.coverAdd}><Text style={{ color: '#fff', fontWeight: '800' }}>+</Text></Pressable>
-          ) : null}
         </View>
-        <View style={styles.avatarStage}>
+        <Pressable style={styles.avatarStage} onPress={openAvatarViewer}>
           <AvatarFrame
             uri={pic}
             name={display}
@@ -257,7 +326,7 @@ export default function CreatorProfileScreen({ route, navigation }) {
             score={Number(engagement?.giftCoins || engagement?.coins || badges.svipLevel * 20000 || 25000)}
             rank={badges.svipLevel >= 10 ? 1 : badges.svipLevel >= 6 ? 2 : 3}
           />
-        </View>
+        </Pressable>
         <View style={styles.hero}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{display}</Text>
@@ -276,7 +345,7 @@ export default function CreatorProfileScreen({ route, navigation }) {
             ) : null}
             {panel.role === 'agency' || engagement?.agencyName ? <Text style={styles.pill}>Agency</Text> : null}
             {panel.role === 'creator' || panel.role === 'host' ? <Text style={styles.pill}>Host</Text> : null}
-            {panel.role === 'coin_seller' ? <Text style={styles.pill}>Seller</Text> : null}
+            {pro?.id ? <Text style={styles.pill}>Services</Text> : null}
             {badges.isSvip && badges.svipLevel > 0 ? <Text style={styles.medal}>SVIP {badges.svipLevel}</Text> : null}
             {(badges.personalLevel || panel.personalLevel) ? <Text style={styles.pill}>Lv.{badges.personalLevel || panel.personalLevel}</Text> : null}
             {badges.vipLevel ? <Text style={styles.pill}>VIP {badges.vipLevel}</Text> : null}
@@ -290,6 +359,18 @@ export default function CreatorProfileScreen({ route, navigation }) {
                 <Text style={styles.msgT}>💬 Message</Text>
               </Pressable>
             </View>
+          ) : null}
+          {!mine && pro?.id ? (
+            <Pressable
+              onPress={() => {
+                const first = (pro.services || [])[0];
+                if (first?.id) navigation.navigate('ServiceDetails', { service: first, serviceId: first.id });
+                else navigation.navigate('Services');
+              }}
+              style={styles.giftCta}
+            >
+              <Text style={styles.giftCtaT}>Book service</Text>
+            </Pressable>
           ) : null}
           {isLive ? (
             <Pressable onPress={joinLive} style={styles.liveBanner}>
@@ -314,12 +395,12 @@ export default function CreatorProfileScreen({ route, navigation }) {
           </View>
           <Pressable
             style={styles.supporters}
-            onPress={() => navigation.navigate('Family', { userId, name: display })}
+            onPress={() => navigation.navigate('Supporters', { userId, view: 'main', period: 'monthly' })}
           >
-            <Text style={styles.supI}>♥</Text>
+            <Text style={styles.supI}>🏆</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.supT}>Fan Club</Text>
-              <Text style={styles.supS}>Top fans, club tier & live activity</Text>
+              <Text style={styles.supT}>Supporters · Top gifts</Text>
+              <Text style={styles.supS}>See who sent the most this month</Text>
             </View>
             <Text style={styles.chev}>›</Text>
           </Pressable>
@@ -329,7 +410,8 @@ export default function CreatorProfileScreen({ route, navigation }) {
               ['relationship', 'Relationship'],
               ['gift', `Gift·${fmt(giftTotal)}`],
               ['posts', `Posts·${fmt(postsN)}`],
-            ].map(([id, label]) => (
+              pro?.id ? ['services', 'Services'] : null,
+            ].filter(Boolean).map(([id, label]) => (
               <Pressable key={id} onPress={() => setTab(id)}>
                 <Text style={[styles.tab, tab === id && styles.tabOn]}>{label}</Text>
               </Pressable>
@@ -430,6 +512,44 @@ export default function CreatorProfileScreen({ route, navigation }) {
               <ProfileMediaSection posts={posts} navigation={navigation} userId={userId} dark initialTab="posts" />
             </View>
           ) : null}
+          {tab === 'services' && pro?.id ? (
+            <View style={styles.panel}>
+              <Text style={styles.panelH}>{providerName(pro)}</Text>
+              {pro.is_approved ? <Text style={styles.meta}>Verified professional</Text> : null}
+              <Text style={styles.body}>
+                {pro.rating ? `★ ${Number(pro.rating).toFixed(1)}` : 'New on Services'}
+                {pro.hourly_rate ? ` · ${formatInr(pro.hourly_rate)}/hr` : ''}
+              </Text>
+              {(pro.services || []).length ? (pro.services || []).map((s) => (
+                <Pressable
+                  key={s.id}
+                  style={styles.sender}
+                  onPress={() => navigation.navigate('ServiceDetails', { service: s, serviceId: s.id })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.senderN}>{s.name}</Text>
+                    <Text style={styles.supS}>{s.category} · {priceLabel(s)}</Text>
+                  </View>
+                  <Text style={styles.chev}>›</Text>
+                </Pressable>
+              )) : <Text style={styles.body}>No listed offerings yet.</Text>}
+              {!mine ? (
+                <Pressable
+                  onPress={() => {
+                    const first = (pro.services || [])[0];
+                    if (first?.id) navigation.navigate('ServiceBooking', { service: first, serviceId: first.id, provider: pro, providerId: pro.id });
+                  }}
+                  style={styles.giftCta}
+                >
+                  <Text style={styles.giftCtaT}>Book this professional</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={() => navigation.navigate('WorkerDashboard')} style={styles.giftCta}>
+                  <Text style={styles.giftCtaT}>Open Services Center</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : null}
           {mine ? (
             <>
               <Text style={styles.mood}>What's your mood now? 🫘</Text>
@@ -467,7 +587,13 @@ export default function CreatorProfileScreen({ route, navigation }) {
           },
         ]}
       />
-      <GiftSheet visible={showGifts} gifts={gifts} balance={balance} onClose={() => setShowGifts(false)} onSend={sendGift} onRecharge={() => { setShowGifts(false); navigation.navigate('Recharge'); }} />
+      <GiftSheet visible={showGifts} gifts={gifts} balance={balance} sending={giftSending} onClose={() => setShowGifts(false)} onSend={sendGift} onRecharge={() => { setShowGifts(false); navigation.navigate('Recharge'); }} />
+      <ProfileImageViewer
+        visible={viewer.visible}
+        uris={viewer.uris}
+        index={viewer.index}
+        onClose={() => setViewer({ visible: false, uris: [], index: 0 })}
+      />
     </View>
   );
 }
@@ -483,7 +609,22 @@ function Stat({ n, l }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.profileBg },
-  cover: { height: 220, backgroundColor: colors.profileCover },
+  cover: { height: 220, backgroundColor: colors.profileCover, overflow: 'hidden' },
+  coverOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
+  coverFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80, zIndex: 2 },
+  coverThumb: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+    overflow: 'hidden',
+    zIndex: 12,
+  },
+  coverThumbImg: { width: '100%', height: '100%' },
   dots: { position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.35)' },
   dotOn: { backgroundColor: '#fff' },
@@ -493,7 +634,20 @@ const styles = StyleSheet.create({
   iconT: { color: '#fff', fontSize: 22, fontWeight: '700' },
   editPill: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 999, paddingHorizontal: 12, justifyContent: 'center' },
   editT: { color: '#fff', fontWeight: '700' },
-  coverAdd: { position: 'absolute', right: 12, bottom: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  coverAdd: {
+    position: 'absolute',
+    right: 64,
+    bottom: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EC4899',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+    elevation: 8,
+  },
+  coverAddT: { color: '#fff', fontWeight: '800', fontSize: 22, lineHeight: 24 },
   avatarStage: { marginTop: -52, alignItems: 'center', zIndex: 4 },
   av: { borderWidth: 3, borderColor: colors.profileTeal },
   hero: { padding: 16, paddingTop: 8 },

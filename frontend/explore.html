@@ -10,12 +10,12 @@
   <link rel="stylesheet" href="social-theme.css?v=20260824-slides">
   <link rel="stylesheet" href="social-features.css?v=20260824-slides">
   <link rel="stylesheet" href="social-shot-skin.css?v=20260824-slides">
-  <link rel="stylesheet" href="social-ui-fix.css?v=20260824-slides">
-  <link rel="stylesheet" href="ap-launch-splash.css?v=20260901">
+  <link rel="stylesheet" href="social-ui-fix.css?v=20260903-slider">
+  <link rel="stylesheet" href="ap-launch-splash.css?v=20260903">
   <script src="native-session-restore.js?v=20260811-boot"></script>
   <script src="ap-config.js"></script>
   <script src="ap-native-boot.js?v=20260811-boot"></script>
-  <script src="ap-launch-splash.js?v=20260901" defer></script>
+  <script src="ap-launch-splash.js?v=20260903-antakshari"></script>
 </head>
 <body class="social-tabs-page social-explore-page explore-empty-state explore-tab-live">
   <header class="social-top">
@@ -23,13 +23,13 @@
       <div class="social-main-tabs social-explore-tabs" id="exploreTabs" role="tablist" aria-label="Live sections">
         <button type="button" role="tab" data-tab="following">Following</button>
         <button type="button" role="tab" data-tab="explore" class="active">Explore</button>
+        <button type="button" role="tab" data-tab="service">Service</button>
         <button type="button" role="tab" data-tab="party">Party</button>
-        <button type="button" role="tab" data-tab="new">New</button>
         <button type="button" role="tab" data-tab="nearby">Nearby</button>
       </div>
       <div class="social-top-actions social-explore-actions">
         <a href="/rankings.html?app=1" class="social-icon-btn" aria-label="Rankings"><i class="fas fa-trophy"></i></a>
-        <button type="button" class="social-global-pill" id="globalChip" aria-label="Global marketplace"><i class="fas fa-globe-asia"></i><span class="social-global-pill-text">Global</span></button>
+        <button type="button" class="social-global-pill" id="globalChip" aria-label="Global marketplace"><i class="fas fa-globe-asia"></i><span class="social-global-pill-text">Global</span><i class="fas fa-chevron-down" style="font-size:11px;opacity:.75;margin-left:2px"></i></button>
       </div>
     </div>
     <div class="social-explore-search-row">
@@ -84,20 +84,21 @@
   <script src="auth-guard.js?v=20260811-boot"></script>
   <script src="social-create-post.js?v=20260821-letterbox" defer></script>
   <script src="ap-soft-nav.js?v=20260730-fastnav4"></script>
-  <script src="social-banner-slider.js?v=20260824-slides"></script>
+  <script src="social-banner-slider.js?v=20260903-slider"></script>
   <script src="social-shell.js?v=20260824-slides"></script>
   <script src="social-nav.js?v=20260720-back-fix"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       let currentTab = new URLSearchParams(location.search).get('tab') || 'explore';
-      const valid = ['following', 'explore', 'party', 'new', 'nearby'];
+      const valid = ['following', 'explore', 'service', 'party', 'nearby'];
       if (!valid.includes(currentTab)) currentTab = 'explore';
 
       const hints = {
         explore: 'Trending live broadcasts right now.',
         party: 'Voice party rooms — join or start one.',
-        new: 'Recently started live rooms.',
+        service: 'Book home services or manage your provider profile.',
         nearby: 'Popular rooms near you (enable location for best results).',
+        following: 'Lives from people you follow.',
       };
 
       function syncExploreHeaderSpacer() {
@@ -163,8 +164,8 @@
         try {
           if (tab === 'party') {
             await SocialShell.fillGrid('exploreGrid', 12, { party: true, sort: 'trending', loadToken });
-          } else if (tab === 'new' || tab === 'nearby') {
-            if (tab === 'nearby' && navigator.geolocation) {
+          } else if (tab === 'nearby') {
+            if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
                 () => SocialShell.fillDiscoveryTab(tab, searchQuery),
                 () => SocialShell.fillDiscoveryTab(tab, searchQuery),
@@ -207,6 +208,11 @@
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           const tab = btn.dataset.tab;
+          if (tab === 'service') {
+            const native = new URLSearchParams(location.search).get('app') === '1';
+            window.location.href = native ? '/services.html?app=1' : '/services.html';
+            return;
+          }
           if (tab === currentTab) return;
           loadTab(tab);
         });

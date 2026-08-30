@@ -53,9 +53,11 @@ exports.registerAsWorker = async (req, res) => {
         });
 
         if (services) {
-            const serviceList = JSON.parse(services);
+            const serviceList = Array.isArray(services) ? services : JSON.parse(services);
             for (const service of serviceList) {
-                await Worker.addService(worker.id, service.serviceId, service.customRate);
+                const sid = service.serviceId || service.service_id || service.id;
+                if (!sid) continue;
+                await Worker.addService(worker.id, sid, service.customRate || service.custom_rate || null);
             }
         }
 
@@ -426,9 +428,20 @@ exports.getWorkerByUserId = async (req, res) => {
             });
         }
         
+        const row = await Worker.findById(worker.id);
+        const services = await Worker.getServices(worker.id);
+        const { publicWorker } = require('../lib/userDto');
         res.json({
             success: true,
-            data: worker
+            data: {
+                ...publicWorker(row || worker),
+                services,
+                user_id: worker.user_id,
+                is_approved: worker.is_approved,
+                hourly_rate: worker.hourly_rate,
+                rating: worker.rating,
+                id: worker.id,
+            }
         });
     } catch (error) {
         console.error('Get worker by user ID error:', error);
@@ -572,7 +585,7 @@ exports.getEarnings = async (req, res) => {
 exports.updateWorkerProfile = async (req, res) => {
     try {
         const userId = req.userId;
-        const { bio, hourly_rate, phone, first_name, last_name } = req.body;
+        const { bio, hourly_rate, phone, first_name, last_name, services } = req.body;
         const worker = await Worker.findByUserId(userId);
         
         // Update user
@@ -635,6 +648,14 @@ exports.updateWorkerProfile = async (req, res) => {
                 success: false,
                 message: 'Worker profile not found. Please complete worker registration first.'
             });
+        }
+
+        if (Array.isArray(services)) {
+            for (const service of services) {
+                const sid = service.serviceId || service.service_id || service.id;
+                if (!sid) continue;
+                await Worker.addService(worker.id, sid, service.customRate || service.custom_rate || null);
+            }
         }
         
         res.json({
@@ -706,6 +727,90 @@ exports.updateWorkerSchedule = async (req, res) => {
         });
     }
 };
+
+// @desc    Create a custom service category/offering with optional photos
+// @route   POST /api/workers/custom-service
+// @access  Private (worker profile required)
+exports.createCustomService = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const worker = await Worker.findByUserId(userId);
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: 'Worker profile not found. Complete provider registration first.',
+            });
+        }
+
+        const name = String(req.body.name || '').trim().slice(0, 80);
+        const category = String(req.body.category || req.body.custom_category || '').trim().slice(0, 60);
+        const description = String(req.body.description || '').trim().slice(0, 500);
+        const basePrice = parseFloat(req.body.base_price || req.body.hourly_rate || worker.hourly_rate || 399);
+        const priceType = String(req.body.price_type || 'hourly').trim() || 'hourly';
+        const customRate = req.body.custom_rate != null ? parseFloat(req.body.custom_rate) : null;
+
+        if (!name || !category) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name and category are required for a custom service',
+            });
+        }
+        if (!Number.isFinite(basePrice) || basePrice < 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'Base price must be at least ₹50',
+            });
+        }
+
+        const { ensureWorkerCustomServicesSchema } = require('../config/ensureWorkerCustomServicesSchema');
+        await ensureWorkerCustomServicesSchema();
+
+        const files = req.files;
+        const photoFiles = [];
+        if (files?.photos) photoFiles.push(...files.photos);
+        if (files?.images) photoFiles.push(...files.images);
+        if (files?.photo) photoFiles.push(...files.photo);
+        const urls = photoFiles.slice(0, 6).map((f) => `/uploads/${f.filename}`);
+        const cover = urls[0] || null;
+
+        const Service = require('../models/Service');
+        const service = await Service.create({
+            name,
+            category,
+            description: description || `${name} by provider`,
+            icon: 'briefcase',
+            base_price: basePrice,
+            price_type: priceType,
+            image_url: cover,
+            is_custom: true,
+            created_by_user_id: userId,
+        });
+
+        await Worker.addService(worker.id, service.id, customRate);
+
+        for (let i = 0; i < urls.length; i++) {
+            await db.query(
+                `INSERT INTO worker_service_images (worker_id, service_id, url, position)
+                 VALUES ($1, $2, $3, $4)`,
+                [worker.id, service.id, urls[i], i]
+            );
+        }
+
+        const services = await Worker.getServices(worker.id);
+        res.status(201).json({
+            success: true,
+            message: 'Custom service added',
+            data: { service, services },
+        });
+    } catch (error) {
+        console.error('Create custom service error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to create custom service',
+        });
+    }
+};
+
 module.exports = {
     registerAsWorker: exports.registerAsWorker,
     getAllWorkers: exports.getAllWorkers,
@@ -718,5 +823,6 @@ module.exports = {
     getEarnings: exports.getEarnings,
     updateWorkerProfile: exports.updateWorkerProfile,
     updateWorkerSchedule: exports.updateWorkerSchedule,
-    getWorkerByUserId: exports.getWorkerByUserId
+    getWorkerByUserId: exports.getWorkerByUserId,
+    createCustomService: exports.createCustomService,
 };

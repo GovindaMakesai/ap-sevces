@@ -1,26 +1,21 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Image,
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../config/theme';
 import { mediaUrl } from '../../config/api';
-import { Avatar, Card, EmptyState, ErrorBanner, Field, GoldButton, Kv, Loading, OutlineButton } from '../../components/ui';
+import { Card, EmptyState, ErrorBanner, GoldButton, Kv, Loading, OutlineButton } from '../../components/ui';
 import { CreamPage } from '../../components/creamChrome';
-import { formatUserDisplayId } from '../../lib/roles';
+import LuckyGiftBoard from '../../components/LuckyGiftBoard';
 import { openReelViewer } from '../../components/PostGrid';
 
 function useApiLoad(loader, deps) {
@@ -80,28 +75,10 @@ export function PointsScreen({ navigation }) {
   );
 }
 
-export function BecomeProScreen({ navigation }) {
-  const { api } = useAuth();
-  const { data, loading } = useApiLoad(async () => api.extractList(await api.get('/services', null, { auth: false })), [api]);
-  if (loading && !data) return <CreamPage title="Become a Pro" navigation={navigation}><Loading /></CreamPage>;
-  return (
-    <CreamPage title="Become a Pro" navigation={navigation}>
-    <ScrollView style={styles.root}>
-      <Card>
-        <Text style={styles.h}>Become a Pro</Text>
-        <Text style={styles.body}>Offer services, take bookings, and earn from customers on AP Live Service.</Text>
-        <GoldButton title="Apply as professional" onPress={() => navigation.navigate('RoleApply')} />
-      </Card>
-      {(data || []).slice(0, 8).map((s, i) => (
-        <Card key={s.id || i}>
-          <Text style={styles.row}>{s.name || s.title}</Text>
-          <Text style={styles.meta}>{s.category || 'Service'} · {s.price || s.amount || ''} </Text>
-        </Card>
-      ))}
-    </ScrollView>
-    </CreamPage>
-  );
-}
+export { default as BecomeProScreen } from '../services/ProviderOnboardingScreen';
+export { default as ServicesScreen } from '../services/ServicesHomeScreen';
+export { default as ServiceDetailsScreen } from '../services/ServiceDetailsScreen';
+export { default as WorkerDashboardScreen } from '../services/ServicesCenterScreen';
 
 export function PrivilegesScreen({ navigation }) {
   return (
@@ -123,125 +100,7 @@ export function PrivilegesScreen({ navigation }) {
 
 export function LuckyGiftsScreen({ navigation }) {
   const { api } = useAuth();
-  const { data, loading, error, load } = useApiLoad(async () => {
-    const res = await api.get('/social/gifts/catalog', { lucky: 1 }, { auth: false }).catch(() =>
-      api.get('/social/gifts/catalog', null, { auth: false })
-    );
-    return api.extractList(res).filter((g) => g.lucky || g.category === 'Lucky' || g.is_lucky);
-  }, [api]);
-  if (loading && !data) return <CreamPage title="Lucky gifts" navigation={navigation}><Loading /></CreamPage>;
-  return (
-    <CreamPage title="Lucky gifts" navigation={navigation}>
-    <ScrollView style={styles.root} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
-      <ErrorBanner message={error} onRetry={load} />
-      <Card><Text style={styles.h}>Lucky gifts</Text><Text style={styles.body}>Send lucky gifts in live rooms for a chance at bonus coins.</Text></Card>
-      {(data || []).length ? data.map((g, i) => (
-        <Card key={g.slug || i}>
-          <Text style={styles.row}>{g.emoji || '🎁'} {g.name}</Text>
-          <Text style={styles.meta}>{g.coin_cost || g.cost} coins</Text>
-        </Card>
-      )) : <EmptyState title="No lucky gifts listed" />}
-    </ScrollView>
-    </CreamPage>
-  );
-}
-
-export function ServicesScreen({ navigation }) {
-  const { api } = useAuth();
-  const [q, setQ] = useState('');
-  const { data, loading, error, load } = useApiLoad(async () => {
-    const res = await api.get('/services', q ? { search: q } : null, { auth: false });
-    return api.extractList(res);
-  }, [api, q]);
-  return (
-    <CreamPage title="Services" navigation={navigation}>
-    <View style={styles.root}>
-      <TextInput value={q} onChangeText={setQ} onSubmitEditing={load} placeholder="Search services" placeholderTextColor={colors.textMuted} style={styles.search} />
-      <ErrorBanner message={error} onRetry={load} />
-      {loading && !data ? <Loading /> : (
-        <FlatList
-          data={data || []}
-          keyExtractor={(item, i) => String(item.id || i)}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
-          ListEmptyComponent={<EmptyState title="No services found" />}
-          renderItem={({ item }) => (
-            <Pressable onPress={() => navigation.navigate('ServiceDetails', { service: item, serviceId: item.id })}>
-              <Card>
-                <Text style={styles.row}>{item.name || item.title}</Text>
-                <Text style={styles.meta}>{item.category || 'Service'} · ₹{item.price || item.amount || 0}</Text>
-              </Card>
-            </Pressable>
-          )}
-        />
-      )}
-    </View>
-    </CreamPage>
-  );
-}
-
-export function ServiceDetailsScreen({ route, navigation }) {
-  const service = route.params?.service || {};
-  const { api } = useAuth();
-  const book = async () => {
-    try {
-      await api.post('/bookings', { serviceId: service.id || route.params?.serviceId });
-      Alert.alert('Booked', 'Your booking was submitted.');
-      navigation.navigate('WorkerDashboard');
-    } catch (e) {
-      Alert.alert('Booking failed', e.message);
-    }
-  };
-  return (
-    <CreamPage title="Service" navigation={navigation}>
-    <ScrollView style={styles.root}>
-      <Card>
-        <Text style={styles.h}>{service.name || service.title || 'Service'}</Text>
-        <Text style={styles.body}>{service.description || service.details || 'Book this professional service.'}</Text>
-        <Kv k="Price" v={`₹${service.price || service.amount || 0}`} />
-        <Kv k="Category" v={service.category} />
-        <GoldButton title="Book now" onPress={book} />
-      </Card>
-    </ScrollView>
-    </CreamPage>
-  );
-}
-
-export function WorkerDashboardScreen({ navigation }) {
-  const { api, user } = useAuth();
-  const { data, error, loading, load } = useApiLoad(async () => {
-    const [stats, bookings, earnings] = await Promise.all([
-      api.get('/workers/dashboard/stats').catch(() => ({})),
-      api.get('/bookings/worker').catch(() => ({})),
-      api.get('/workers/earnings').catch(() => ({})),
-    ]);
-    return { stats: api.unwrap(stats), bookings: api.extractList(bookings), earnings: api.unwrap(earnings) };
-  }, [api]);
-  if (loading && !data) return <CreamPage title="My Dashboard" navigation={navigation}><Loading /></CreamPage>;
-  return (
-    <CreamPage title="My Dashboard" navigation={navigation}>
-    <ScrollView style={styles.root} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
-      <ErrorBanner message={error} onRetry={load} />
-      <Card>
-        <Text style={styles.h}>My Dashboard</Text>
-        <Kv k="Bookings" v={data?.stats?.bookings || data?.bookings?.length} />
-        <Kv k="Earnings" v={data?.earnings?.total || data?.stats?.earnings} />
-        <Kv k="Role" v={user?.role} />
-      </Card>
-      {(data?.bookings || []).map((b) => (
-        <Card key={b.id}>
-          <Text style={styles.row}>{b.service_name || b.title || 'Booking'}</Text>
-          <Text style={styles.meta}>{b.status} · {b.scheduled_at || b.created_at || ''}</Text>
-          {b.status === 'pending' ? (
-            <View style={styles.rowBtns}>
-              <GoldButton title="Accept" onPress={() => api.put(`/bookings/${b.id}/status`, { status: 'accepted' }).then(load)} />
-              <OutlineButton title="Decline" onPress={() => api.put(`/bookings/${b.id}/status`, { status: 'cancelled' }).then(load)} />
-            </View>
-          ) : null}
-        </Card>
-      ))}
-    </ScrollView>
-    </CreamPage>
-  );
+  return <LuckyGiftBoard visible api={api} onClose={() => navigation.goBack()} />;
 }
 
 function postMedia(item) {
@@ -372,11 +231,11 @@ export function HelpScreen({ navigation }) {
       <Card>
         <Text style={styles.h}>Frequently Asked Questions</Text>
         <Text style={styles.row}>How do I book a service?</Text>
-        <Text style={styles.body}>Open Services from Me, choose a professional, and complete booking and payment.</Text>
+        <Text style={styles.body}>Open Explore → Services, pick a professional, choose a time, pay by UPI, then track the job in Me → My bookings.</Text>
         <Text style={styles.row}>How do I cancel a booking?</Text>
-        <Text style={styles.body}>Open My Dashboard / booking details and cancel before the start time if the original policy allows it.</Text>
+        <Text style={styles.body}>Open the booking and cancel while it is still waiting or confirmed, if the professional has not started.</Text>
         <Text style={styles.row}>How do I become a professional?</Text>
-        <Text style={styles.body}>Me → Apply for Host / Agency / Seller, then complete Live verification.</Text>
+        <Text style={styles.body}>Me → Offer services. Admin approval is required before you receive jobs.</Text>
       </Card>
       <GoldButton title="Privacy policy" onPress={() => navigation.navigate('Legal', { kind: 'privacy' })} />
       <View style={{ height: 8 }} />

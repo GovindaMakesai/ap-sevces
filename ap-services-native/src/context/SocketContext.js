@@ -91,7 +91,7 @@ export function SocketProvider({ children }) {
   );
   const sendGift = useCallback(
     (channel, payload = {}) =>
-      emit('live:gift', { channel, giftType: payload.giftSlug, ...payload }),
+      emit('live:gift', { channel, giftType: payload.giftSlug, ...payload }, 25000),
     [emit]
   );
   const requestSeat = useCallback((channel, seatIndex) => emit('live:seat_request', { channel, seatIndex }), [emit]);
@@ -121,6 +121,8 @@ export function SocketProvider({ children }) {
         rivalChannel: opts.targetChannel || opts.rivalChannel || '',
         mode,
         type: mode,
+        format: opts.format || (mode === 'team' ? '3v3' : '1v1'),
+        allowParty: Boolean(opts.allowParty),
         durationSeconds,
         durationSec: durationSeconds,
         durationMinutes: opts.durationMinutes || Math.round(durationSeconds / 60),

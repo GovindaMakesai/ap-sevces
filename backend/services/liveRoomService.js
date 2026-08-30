@@ -13,6 +13,7 @@ const {
 } = require('./liveUserAnalyticsService');
 const redis = require('../lib/redis');
 const { toJsonb, safeDisplayName } = require('../lib/pgJsonb');
+const { PLATFORM_OWNER_EMAIL } = require('../middleware/platformOwner');
 
 const SEAT_REQUEST_TTL_SEC = 900;
 let liveIo = null;
@@ -398,7 +399,7 @@ async function getMemberProfilePic(userId) {
 async function getActiveMembers(liveRoomId) {
   const res = await db.query(
     `SELECT m.user_id, m.display_name, m.role, m.is_muted, m.is_chat_muted, m.gift_count, m.joined_at, m.seat_index,
-            m.last_seen_at, u.profile_pic, u.display_id, u.role AS user_role
+            m.last_seen_at, u.profile_pic, u.display_id, u.role AS user_role, u.email AS user_email
      FROM live_room_members m
      LEFT JOIN users u ON u.id = m.user_id
      WHERE m.live_room_id = $1 AND m.left_at IS NULL ORDER BY m.joined_at ASC`,
@@ -409,6 +410,33 @@ async function getActiveMembers(liveRoomId) {
 
 function isPlatformAdminRole(role) {
   return ['admin', 'super_admin', 'founder', 'ceo'].includes(String(role || '').toLowerCase());
+}
+
+function isPlatformOwnerEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  return Boolean(e) && e === PLATFORM_OWNER_EMAIL;
+}
+
+/** Role or platform-owner email — matches HTTP auth elevation. */
+function isPlatformAdminFields({ role, email } = {}) {
+  return isPlatformAdminRole(role) || isPlatformOwnerEmail(email);
+}
+
+async function isPlatformAdminUser(userId) {
+  if (!userId) return false;
+  const userRes = await db.query(`SELECT role, email FROM users WHERE id = $1`, [userId]);
+  const row = userRes.rows[0];
+  if (!row) return false;
+  if (!isPlatformAdminFields(row)) return false;
+  if (isPlatformOwnerEmail(row.email) && !isPlatformAdminRole(row.role)) {
+    try {
+      await db.query(
+        `UPDATE users SET role = 'super_admin', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [userId]
+      );
+    } catch (_e) {}
+  }
+  return true;
 }
 
 async function getRecentEvents(liveRoomId, limit = 40) {
@@ -553,7 +581,7 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
       gifts: Number(m.gift_count),
       isHost: m.role === 'host',
       isAdmin: m.role === 'admin',
-      isPlatformAdmin: isPlatformAdminRole(m.user_role),
+      isPlatformAdmin: isPlatformAdminFields({ role: m.user_role, email: m.user_email }),
       userRole: m.user_role || null,
       seatIndex: m.seat_index,
       agoraUid: uidFromUserId(m.user_id),
@@ -572,7 +600,7 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
     seatIndex: m.seat_index,
     isOnline: true,
     isAdmin: m.role === 'admin',
-    isPlatformAdmin: isPlatformAdminRole(m.user_role),
+    isPlatformAdmin: isPlatformAdminFields({ role: m.user_role, email: m.user_email }),
     agoraUid: uidFromUserId(m.user_id),
   }));
 
@@ -585,17 +613,23 @@ async function buildSnapshot(channel, { bypassCache = false } = {}) {
     if (hostMember) {
       hostProfilePic = hostMember.profile_pic || null;
       hostDisplayId = hostMember.display_id != null ? String(hostMember.display_id) : null;
-      hostIsPlatformAdmin = isPlatformAdminRole(hostMember.user_role);
+      hostIsPlatformAdmin = isPlatformAdminFields({
+        role: hostMember.user_role,
+        email: hostMember.user_email,
+      });
       hostUserRole = hostMember.user_role || null;
     } else {
       const hostPicRes = await db.query(
-        `SELECT profile_pic, display_id, role FROM users WHERE id = $1`,
+        `SELECT profile_pic, display_id, role, email FROM users WHERE id = $1`,
         [room.host_user_id]
       );
       hostProfilePic = hostPicRes.rows[0]?.profile_pic || null;
       hostDisplayId =
         hostPicRes.rows[0]?.display_id != null ? String(hostPicRes.rows[0].display_id) : null;
-      hostIsPlatformAdmin = isPlatformAdminRole(hostPicRes.rows[0]?.role);
+      hostIsPlatformAdmin = isPlatformAdminFields({
+        role: hostPicRes.rows[0]?.role,
+        email: hostPicRes.rows[0]?.email,
+      });
       hostUserRole = hostPicRes.rows[0]?.role || null;
     }
   }
@@ -1411,8 +1445,7 @@ async function kickMember({ channel, userId, bannedBy, reason, durationHours }) 
   const room = await findByChannel(channel);
   if (!room) throw new Error('Room not found');
   if (String(room.host_user_id) === String(userId)) {
-    const actor = await db.query(`SELECT role FROM users WHERE id = $1`, [bannedBy]);
-    if (!isPlatformAdminRole(actor.rows[0]?.role)) {
+    if (!(await isPlatformAdminUser(bannedBy))) {
       throw new Error('Cannot remove the room host');
     }
     let hours = durationHours === undefined || durationHours === '' ? 0 : Number(durationHours);
@@ -1507,21 +1540,15 @@ async function isRoomModerator(channel, userId) {
   const room = await findByChannel(channel);
   if (!room) return false;
   if (String(room.host_user_id) === String(userId)) return true;
+  if (await isPlatformAdminUser(userId)) return true;
   const member = await db.query(
-    `SELECT m.role, u.role AS user_role
+    `SELECT m.role
      FROM live_room_members m
-     LEFT JOIN users u ON u.id = m.user_id
      WHERE m.live_room_id = $1 AND m.user_id = $2 AND m.left_at IS NULL LIMIT 1`,
     [room.id, userId]
   );
   const row = member.rows[0];
-  if (!row) {
-    /* Platform admins may moderate even if member row is missing briefly */
-    const userRes = await db.query(`SELECT role FROM users WHERE id = $1`, [userId]);
-    return isPlatformAdminRole(userRes.rows[0]?.role);
-  }
-  if (String(row.role || '') === 'admin') return true;
-  return isPlatformAdminRole(row.user_role);
+  return Boolean(row && String(row.role || '') === 'admin');
 }
 
 async function listRoomAdminUserIds(roomId) {
@@ -1745,6 +1772,9 @@ module.exports = {
   updateStreamPresentation,
   setLiveIo,
   isPlatformAdminRole,
+  isPlatformAdminFields,
+  isPlatformAdminUser,
+  isPlatformOwnerEmail,
   getActiveHostCooldown,
   setHostCooldown,
   roomCache,

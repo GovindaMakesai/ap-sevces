@@ -15,6 +15,7 @@ const {
     clearSessionCookies,
     getRefreshTokenFromRequest,
 } = require('../services/authTokenService');
+const { generateOAuthPhonePlaceholder } = require('../lib/userPhone');
 
 const mapExperienceRangeToYears = (range) => {
     const table = { '0-1': 0, '1-3': 2, '3-5': 4, '5-10': 7, '10+': 12 };
@@ -238,12 +239,7 @@ async function respondAuthedJson(res, user, message, accessToken = null, refresh
     });
 }
 
-const generateGooglePhoneCandidate = (providerId, offset = 0) => {
-    const digits = String(providerId || '').replace(/\D/g, '');
-    const base = digits.slice(-9).padStart(9, '0');
-    const numeric = (BigInt(base) + BigInt(offset)).toString().slice(-9).padStart(9, '0');
-    return `9${numeric}`;
-};
+const generateGooglePhoneCandidate = generateOAuthPhonePlaceholder;
 
 const getUniqueGooglePhone = async (providerId) => {
     for (let i = 0; i < 50; i += 1) {
@@ -332,7 +328,8 @@ const register = async (req, res) => {
             first_name,
             last_name,
             role,
-            gender: rawGender
+            gender: rawGender,
+            phone_provided: true,
         });
 
         let userOut = { ...newUser };
@@ -609,6 +606,7 @@ const deleteProfileAlbumPhoto = async (req, res) => {
 // Get Me
 const getMe = async (req, res) => {
     try {
+        await User.ensurePhonePrivacyColumns();
         let user = await User.findById(req.userId);
         if (!user) {
             return res.status(404).json({
@@ -697,7 +695,8 @@ const googleCallback = async (req, res) => {
                 password: randomPassword,
                 first_name,
                 last_name,
-                role: requestedRole
+                role: requestedRole,
+                phone_provided: false,
             });
             await User.setProvider(created.id, provider, providerId, displayName);
             user = await User.findById(created.id);
@@ -752,7 +751,8 @@ const githubCallback = async (req, res) => {
                 password: randomPassword,
                 first_name,
                 last_name,
-                role: requestedRole
+                role: requestedRole,
+                phone_provided: false,
             });
             await User.setProvider(created.id, provider, providerId, name);
             user = await User.findById(created.id);
@@ -807,7 +807,8 @@ const facebookCallback = async (req, res) => {
                 password: randomPassword,
                 first_name,
                 last_name,
-                role: requestedRole
+                role: requestedRole,
+                phone_provided: false,
             });
             await User.setProvider(created.id, provider, providerId, name);
             user = await User.findById(created.id);

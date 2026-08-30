@@ -75,9 +75,12 @@ class Booking {
                    u.id as worker_user_id,
                    u.first_name as worker_first_name,
                    u.last_name as worker_last_name,
-                   u.phone as worker_phone,
+                   u.profile_pic as worker_profile_pic,
+                   c.profile_pic as customer_profile_pic,
                    s.name as service_name,
-                   s.category as service_category
+                   s.category as service_category,
+                   s.price_type as service_price_type,
+                   s.base_price as service_base_price
             FROM bookings b
             JOIN users c ON b.customer_id = c.id
             LEFT JOIN workers w ON b.worker_id = w.id
@@ -98,6 +101,7 @@ class Booking {
                    u.id as worker_user_id,
                    u.first_name as worker_first_name,
                    u.last_name as worker_last_name,
+                   u.profile_pic as worker_profile_pic,
                    s.name as service_name,
                    s.category as service_category
             FROM bookings b
@@ -125,8 +129,9 @@ class Booking {
             SELECT b.*,
                    u.first_name as customer_first_name,
                    u.last_name as customer_last_name,
-                   u.phone as customer_phone,
-                   s.name as service_name
+                   u.profile_pic as customer_profile_pic,
+                   s.name as service_name,
+                   s.category as service_category
             FROM bookings b
             JOIN users u ON b.customer_id = u.id
             LEFT JOIN services s ON b.service_id = s.id

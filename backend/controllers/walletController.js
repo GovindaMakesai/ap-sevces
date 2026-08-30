@@ -334,6 +334,8 @@ exports.sendGift = async (req, res) => {
       giftType: type,
       coinAmount: coins,
       qty: parseInt(req.body?.qty || req.body?.quantity || 1, 10) || 1,
+      clientRequestId:
+        req.body?.client_request_id || req.body?.clientRequestId || req.body?.requestId || null,
     });
 
     res.json({

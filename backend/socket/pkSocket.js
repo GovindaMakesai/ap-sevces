@@ -116,9 +116,9 @@ function registerPkSocket(io) {
 
         let format = payload?.format || '1v1';
         if (mode === 'team' && (!payload?.format || payload.format === '1v1' || payload.format === '1v2')) {
-          format = '1v4';
+          format = '3v3';
         }
-        if (!['1v1', '1v2', '1v4', '1v8'].includes(format)) format = '1v1';
+        if (!['1v1', '1v2', '3v3', '1v4', '1v8'].includes(format)) format = '1v1';
 
         if (mode === 'friend' && !payload?.opponentUserId && !payload?.forceStart) {
           return ack?.({ ok: false, message: 'Pick a friend for Friend PK' });
@@ -227,7 +227,7 @@ function registerPkSocket(io) {
           targetChannel: targetChannel || '',
           opponentName,
           mode,
-          format: mode === 'team' ? payload?.format || '1v4' : '1v1',
+          format: mode === 'team' ? payload?.format || '3v3' : '1v1',
           durationSeconds: payload?.durationSeconds || 300,
           createdAt: Date.now(),
         };

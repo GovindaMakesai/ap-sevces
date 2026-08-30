@@ -31,6 +31,7 @@ import { resolveGiftAnim } from '../../config/giftAnims';
 import { STICKER_TABS } from '../../config/stickers';
 import { mediaUrl } from '../../config/api';
 import { filePart, pickMedia } from '../../lib/pickMedia';
+import { newClientRequestId } from '../../lib/clientRequestId';
 
 const PAGE = 80;
 const VOICE_RECORDING = {
@@ -206,6 +207,8 @@ export default function ChatThreadScreen({ navigation, route }) {
   const [stickerTab, setStickerTab] = useState('emoji');
   const [showPlus, setShowPlus] = useState(false);
   const [showGifts, setShowGifts] = useState(false);
+  const [giftSending, setGiftSending] = useState(false);
+  const giftLock = useRef(false);
   const [gifts, setGifts] = useState([]);
   const [balance, setBalance] = useState(0);
   const [burst, setBurst] = useState(null);
@@ -552,15 +555,21 @@ export default function ChatThreadScreen({ navigation, route }) {
     }
   };
 
-  const sendGift = async (gift, qty) => {
+  const sendGift = async (gift, qty, opts = {}) => {
+    if (giftLock.current) return;
+    giftLock.current = true;
+    setGiftSending(true);
     try {
       const cost = Number(gift.coin_cost || gift.cost || 0) * qty;
       const anim = resolveGiftAnim(gift);
+      const clientRequestId = opts.clientRequestId || newClientRequestId('gift');
       await api.post('/wallet/gifts', {
         receiverId: peerId,
         giftType: gift.slug || gift.name || 'gift',
         coinAmount: cost,
         qty,
+        clientRequestId,
+        client_request_id: clientRequestId,
       });
       await send(`${gift.emoji || '🎁'} sent ${gift.name || anim.title || 'gift'} x${qty}`);
       setBurst({
@@ -574,6 +583,9 @@ export default function ChatThreadScreen({ navigation, route }) {
       setShowGifts(false);
     } catch (e) {
       Alert.alert('Gift failed', e.message);
+    } finally {
+      giftLock.current = false;
+      setGiftSending(false);
     }
   };
 
@@ -838,7 +850,7 @@ export default function ChatThreadScreen({ navigation, route }) {
           </ScrollView>
         </View>
       ) : null}
-      <GiftSheet visible={showGifts} gifts={gifts} balance={balance} onClose={() => setShowGifts(false)} onSend={sendGift} onRecharge={() => { setShowGifts(false); navigation.navigate('Recharge'); }} />
+      <GiftSheet visible={showGifts} gifts={gifts} balance={balance} sending={giftSending} onClose={() => setShowGifts(false)} onSend={sendGift} onRecharge={() => { setShowGifts(false); navigation.navigate('Recharge'); }} />
       <GiftBurst gift={burst} onDone={() => setBurst(null)} />
       <Modal visible={!!viewer} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
         <Pressable style={styles.viewerBg} onPress={() => setViewer(null)}>

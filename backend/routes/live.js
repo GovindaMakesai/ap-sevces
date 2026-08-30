@@ -67,5 +67,14 @@ function liveChatUploadMiddleware(req, res, next) {
 }
 
 router.post('/chat/media', verifyToken, liveChatUploadMiddleware, liveController.uploadChatMedia);
+router.get('/lucky-box/active', optionalAuth, liveController.activeLuckyBoxes);
+router.post('/lucky-box', verifyToken, liveController.sendLuckyBox);
+router.post('/lucky-box/:id/claim', verifyToken, liveController.claimLuckyBox);
+router.get('/lucky-box/:id/winners', optionalAuth, liveController.luckyBoxWinners);
+
+router.get('/rooms/:channel/follow', optionalAuth, liveController.roomFollowState);
+router.post('/rooms/:channel/follow', verifyToken, liveController.followRoom);
+router.delete('/rooms/:channel/follow', verifyToken, liveController.unfollowRoom);
+router.get('/rooms/:channel/followers', optionalAuth, liveController.listRoomFollowers);
 
 module.exports = router;

@@ -27,6 +27,7 @@ function LiveVideoLayerInner({
   hostName,
   style,
   uid,
+  overlay,
 }) {
   if (!RtcView || !agoraReady) {
     return (
@@ -45,7 +46,7 @@ function LiveVideoLayerInner({
         <RtcView
           style={[StyleSheet.absoluteFill, mirrored ? { transform: [{ scaleX: -1 }] } : null]}
           canvas={{ uid: 0, sourceType: VideoSourceType?.VideoSourceCamera }}
-          zOrderMediaOverlay={Platform.OS === 'android'}
+          zOrderMediaOverlay={Platform.OS === 'android' || Boolean(overlay)}
           collapsable={false}
         />
         {tint ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} /> : null}
@@ -59,7 +60,7 @@ function LiveVideoLayerInner({
       <RtcView
         style={[StyleSheet.absoluteFill, style]}
         canvas={{ uid: playUid, sourceType: VideoSourceType?.VideoSourceRemote }}
-        zOrderMediaOverlay={Platform.OS === 'android'}
+        zOrderMediaOverlay={Platform.OS === 'android' || Boolean(overlay)}
         collapsable={false}
       />
     );
@@ -83,7 +84,8 @@ function propsEqual(a, b) {
     a.mirrored === b.mirrored &&
     a.hostProfilePic === b.hostProfilePic &&
     a.hostName === b.hostName &&
-    a.uid === b.uid
+    a.uid === b.uid &&
+    a.overlay === b.overlay
   );
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Platform, ScrollView, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { CreamHeader, CreamMenuRow, creamRoot } from '../../components/creamChrome';
 
@@ -25,6 +25,14 @@ export default function SettingsScreen({ navigation }) {
           onPress={() => navigation.navigate('Legal', { kind: 'privacy' })}
         />
         <CreamMenuRow icon="reader-outline" title="Terms" onPress={() => navigation.navigate('Legal', { kind: 'terms' })} />
+        {__DEV__ && Platform.OS === 'android' ? (
+          <CreamMenuRow
+            icon="camera-outline"
+            title="Camera Kit Test (Debug)"
+            accent="#B45309"
+            onPress={() => navigation.navigate('CameraKitTest')}
+          />
+        ) : null}
         <CreamMenuRow
           icon="trash-outline"
           title="Request account deletion"

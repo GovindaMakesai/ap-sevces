@@ -451,6 +451,7 @@ async function addComment(postId, userId, body, { parentId = null } = {}) {
     ...res.rows[0],
     like_count: 0,
     liked: false,
+    reply_count: 0,
     author: userRes.rows[0],
   };
 }
@@ -463,6 +464,8 @@ async function listComments(postId, { limit = 50, offset = 0, viewerId = null } 
             u.first_name, u.last_name, u.profile_pic, u.display_id,
             p.user_id AS post_owner_id,
             (SELECT COUNT(*)::int FROM social_comment_likes cl WHERE cl.comment_id = c.id) AS like_count,
+            (SELECT COUNT(*)::int FROM social_post_comments r
+              WHERE r.parent_id = c.id AND r.deleted_at IS NULL) AS reply_count,
             CASE
               WHEN $4::uuid IS NULL THEN false
               ELSE EXISTS (

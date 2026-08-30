@@ -1,0 +1,8 @@
+# Copy to camerakit.local.properties (gitignored) and fill in Staging values only.
+# NEVER put the Production API token here.
+#
+# Demo Lens Group = Snap sample AR lenses (some look blank/white — swipe the carousel).
+# For Snapchat-like beauty, publish beauty lenses in My Lenses / Lens Scheduler and
+# put THAT lens group ID here instead (or in addition once multi-group is wired).
+SNAP_CAMERA_KIT_STAGING_API_TOKEN=
+SNAP_CAMERA_KIT_DEMO_LENS_GROUP_ID=

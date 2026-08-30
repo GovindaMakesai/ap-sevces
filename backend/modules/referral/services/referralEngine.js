@@ -1,4 +1,5 @@
 const db = require('../../../config/database');
+const { displayPhone } = require('../../../lib/userPhone');
 const settings = require('./settingsService');
 const invitationService = require('./invitationService');
 const fraudService = require('./fraudService');
@@ -40,16 +41,17 @@ async function buildValidationSnapshot(inviteeId) {
   const requireProfile = (await settings.getSetting('require_profile', true)) !== false;
 
   const u = await db.query(
-    `SELECT phone, is_verified, identity_verified_at, face_verified_at,
+    `SELECT phone, phone_provided, provider, provider_id, is_verified, identity_verified_at, face_verified_at,
             profile_pic, first_name, last_name, role
      FROM users WHERE id = $1`,
     [inviteeId]
   );
   const user = u.rows[0] || {};
+  const userPhone = displayPhone(user);
   const checks = {
     registered: true,
-    phone: Boolean(user.phone) || !requirePhone,
-    otp_or_verified: Boolean(user.is_verified) || Boolean(user.phone) || !requirePhone,
+    phone: Boolean(userPhone) || !requirePhone,
+    otp_or_verified: Boolean(user.is_verified) || Boolean(userPhone) || !requirePhone,
     face: Boolean(user.face_verified_at) || Boolean(user.identity_verified_at) || !requireFace,
     profile:
       /*

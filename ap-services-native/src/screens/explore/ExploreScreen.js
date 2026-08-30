@@ -2,6 +2,8 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
+  Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,20 +21,45 @@ import RoomCard from '../../components/RoomCard';
 import { shouldRefresh } from '../../lib/queryCache';
 
 const TABS = [
-  { id: 'explore', label: 'Explore' },
-  { id: 'party', label: 'Party' },
-  { id: 'new', label: 'New' },
-  { id: 'nearby', label: 'Nearby' },
   { id: 'following', label: 'Following' },
+  { id: 'explore', label: 'Explore' },
+  { id: 'service', label: 'Service', screen: 'Services' },
+  { id: 'party', label: 'Party' },
+  { id: 'nearby', label: 'Nearby' },
 ];
 
+const REGION_POPULAR = [
+  { id: 'Popular', label: 'Popular' },
+  { id: 'Philippines', label: '🇵🇭 Philippines' },
+  { id: 'Nepal', label: '🇳🇵 Nepal' },
+  { id: 'India', label: '🇮🇳 India' },
+  { id: 'Pakistan', label: '🇵🇰 Pakistan' },
+  { id: 'Bangladesh', label: '🇧🇩 Bangladesh' },
+];
+
+const REGION_MORE = [
+  { id: 'Vietnam', label: '🇻🇳 Vietnam' },
+  { id: 'Nigeria', label: '🇳🇬 Nigeria' },
+  { id: 'Brazil', label: '🇧🇷 Brazil' },
+  { id: 'Egypt', label: '🇪🇬 Egypt' },
+  { id: 'Ghana', label: '🇬🇭 Ghana' },
+];
+
+const EXPLORE_TAB_INDEX = TABS.findIndex((t) => t.id === 'explore');
+
 const BANNERS = [
+  {
+    id: 'reality',
+    image: require('../../../assets/promos/ap-reality-show.jpg'),
+    screen: 'Rankings',
+  },
   {
     id: 'lucky',
     colors: ['#3B2412', '#1A0E08'],
     kicker: 'Lucky Gift Ranking',
     range: 'Daily Top1  ·  3-Day Top1',
     prize: '30,000,000  /  100,000,000',
+    screen: 'Rankings',
   },
   {
     id: 'pk',
@@ -40,6 +67,15 @@ const BANNERS = [
     kicker: 'PK Combat Points Ranking',
     range: 'This week prize pool',
     prize: '112,770,000',
+    screen: 'Rankings',
+  },
+  {
+    id: 'services',
+    colors: ['#0F766E', '#115E59'],
+    kicker: 'Home services',
+    range: 'Plumbing · Beauty · Repair',
+    prize: 'Book a trusted pro',
+    screen: 'Services',
   },
 ];
 
@@ -85,12 +121,24 @@ function BannerSlider({ navigation }) {
         }}
         style={{ marginHorizontal: 12 }}
         renderItem={({ item }) => (
-          <Pressable onPress={() => navigation.navigate('Rankings')} style={{ width: BANNER_W }}>
-            <LinearGradient colors={item.colors} style={styles.banner}>
-              <Text style={styles.bannerK}>{item.kicker}</Text>
-              <Text style={styles.bannerR}>{item.range}</Text>
-              <Text style={styles.bannerP}>{item.prize}</Text>
-            </LinearGradient>
+          <Pressable
+            onPress={() => navigation.navigate(item.screen || 'Rankings')}
+            style={{ width: BANNER_W }}
+          >
+            {item.image ? (
+              <Image
+                source={item.image}
+                style={styles.bannerImg}
+                resizeMode="cover"
+                accessibilityLabel="1st Reality Show Antakshari"
+              />
+            ) : (
+              <LinearGradient colors={item.colors} style={styles.banner}>
+                <Text style={styles.bannerK}>{item.kicker}</Text>
+                <Text style={styles.bannerR}>{item.range}</Text>
+                <Text style={styles.bannerP}>{item.prize}</Text>
+              </LinearGradient>
+            )}
           </Pressable>
         )}
       />
@@ -115,7 +163,7 @@ function RoomsGrid({ tabId, api, q, navigation }) {
     if (showSpinner) setLoading(true);
     try {
       const isParty = tabId === 'party';
-      const sort = tabId === 'new' ? 'new' : 'trending';
+      const sort = 'trending';
       const liveQuery = {
         type: isParty ? 'party' : tabId === 'explore' ? undefined : 'live',
         limit: 40,
@@ -223,15 +271,30 @@ function RoomsGrid({ tabId, api, q, navigation }) {
 export default function ExploreScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { api } = useAuth();
-  const [tabIndex, setTabIndex] = useState(0);
+  const [tabIndex, setTabIndex] = useState(Math.max(0, EXPLORE_TAB_INDEX));
   const [q, setQ] = useState('');
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [region, setRegion] = useState('Global');
   const tabsRef = useRef(null);
   const tab = TABS[tabIndex]?.id || 'explore';
 
-  const changeTab = useCallback((index) => {
-    const i = Math.max(0, Math.min(TABS.length - 1, index));
-    setTabIndex(i);
-    tabsRef.current?.scrollTo({ x: Math.max(0, i * 72 - 40), animated: true });
+  const changeTab = useCallback(
+    (index) => {
+      const t = TABS[index];
+      if (!t) return;
+      if (t.screen) {
+        navigation.navigate(t.screen);
+        return;
+      }
+      setTabIndex(index);
+      tabsRef.current?.scrollTo({ x: Math.max(0, index * 72 - 40), animated: true });
+    },
+    [navigation]
+  );
+
+  const pickRegion = useCallback((id) => {
+    setRegion(id === 'Popular' ? 'Global' : id);
+    setRegionOpen(false);
   }, []);
 
   return (
@@ -246,14 +309,33 @@ export default function ExploreScreen({ navigation }) {
           >
             {TABS.map((t, i) => (
               <Pressable key={t.id} onPress={() => changeTab(i)} style={styles.tab}>
-                <Text style={[styles.tabT, tabIndex === i && styles.tabTOn]}>{t.label}</Text>
-                {tabIndex === i ? <View style={styles.tabLine} /> : null}
+                <Text style={[styles.tabT, tabIndex === i && !t.screen && styles.tabTOn]}>{t.label}</Text>
+                {tabIndex === i && !t.screen ? <View style={styles.tabLine} /> : null}
               </Pressable>
             ))}
           </ScrollView>
-          <Pressable onPress={() => navigation.navigate('Rankings')} style={styles.trophy}>
-            <Ionicons name="trophy" size={20} color="#C9A227" />
-          </Pressable>
+          <View style={styles.topIcons}>
+            <Pressable
+              onPress={() => navigation.navigate('Rankings')}
+              style={styles.trophy}
+              accessibilityRole="button"
+              accessibilityLabel="Rankings"
+            >
+              <Ionicons name="trophy" size={20} color="#C9A227" />
+            </Pressable>
+            <Pressable
+              onPress={() => setRegionOpen(true)}
+              style={styles.globalPill}
+              accessibilityRole="button"
+              accessibilityLabel="Global region"
+            >
+              <Ionicons name="globe-outline" size={16} color="#6B4A1B" />
+              <Text style={styles.globalT} numberOfLines={1}>
+                {region}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color="#8B6D3B" />
+            </Pressable>
+          </View>
         </View>
         <View style={styles.search}>
           <Ionicons name="search" size={16} color="#C4A574" />
@@ -269,7 +351,7 @@ export default function ExploreScreen({ navigation }) {
       </View>
 
       <View style={{ flex: 1 }}>
-        <RoomsGrid tabId={tab} api={api} q={q} navigation={navigation} />
+        <RoomsGrid tabId={tab === 'service' ? 'explore' : tab} api={api} q={q} navigation={navigation} />
       </View>
 
       <Pressable onPress={() => navigation.navigate('GoLive', { isParty: tab === 'party' })} style={styles.fabWrap}>
@@ -278,6 +360,62 @@ export default function ExploreScreen({ navigation }) {
           <Text style={styles.fabT}>Start Live</Text>
         </LinearGradient>
       </Pressable>
+
+      <Modal visible={regionOpen} transparent animationType="slide" onRequestClose={() => setRegionOpen(false)}>
+        <View style={styles.sheetScrim}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setRegionOpen(false)} />
+          <View style={[styles.sheet, { paddingBottom: Math.max(16, insets.bottom + 8) }]}>
+            <View style={styles.sheetHead}>
+              <Text style={styles.sheetHot}>HOT</Text>
+              <Pressable onPress={() => setRegionOpen(false)} style={styles.sheetClose}>
+                <Ionicons name="globe-outline" size={16} color="#6B4A1B" />
+                <Text style={styles.sheetCloseT}>{region}</Text>
+                <Ionicons name="chevron-up" size={14} color="#8B6D3B" />
+              </Pressable>
+            </View>
+            <Text style={styles.sheetLabel}>Popular</Text>
+            <View style={styles.pillWrap}>
+              {REGION_POPULAR.map((r) => (
+                <Pressable
+                  key={r.id}
+                  onPress={() => pickRegion(r.id)}
+                  style={[styles.regionPill, (region === r.id || (r.id === 'Popular' && region === 'Global')) && styles.regionPillOn]}
+                >
+                  <Text
+                    style={[
+                      styles.regionPillT,
+                      (region === r.id || (r.id === 'Popular' && region === 'Global')) && styles.regionPillTOn,
+                    ]}
+                  >
+                    {r.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.sheetLabel}>Country/Region</Text>
+            <View style={styles.pillWrap}>
+              {REGION_MORE.map((r) => (
+                <Pressable
+                  key={r.id}
+                  onPress={() => pickRegion(r.id)}
+                  style={[styles.regionPill, region === r.id && styles.regionPillOn]}
+                >
+                  <Text style={[styles.regionPillT, region === r.id && styles.regionPillTOn]}>{r.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={() => {
+                setRegionOpen(false);
+                navigation.navigate('Services');
+              }}
+              style={styles.marketBtn}
+            >
+              <Text style={styles.marketBtnT}>Open marketplace</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -296,7 +434,55 @@ const styles = StyleSheet.create({
   tabT: { color: '#C4A574', fontSize: 16, fontWeight: '600' },
   tabTOn: { color: '#6B4A1B', fontWeight: '800', fontSize: 18 },
   tabLine: { marginTop: 4, width: 18, height: 3, borderRadius: 2, backgroundColor: '#6B4A1B' },
-  trophy: { width: 40, height: 36, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  topIcons: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 2 },
+  trophy: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  globalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: '#F3EBDD',
+    maxWidth: 118,
+    marginRight: 4,
+  },
+  globalT: { color: '#6B4A1B', fontWeight: '700', fontSize: 12, maxWidth: 64 },
+  sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    maxHeight: '72%',
+  },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  sheetHot: { fontWeight: '900', color: '#6B4A1B', fontSize: 18, letterSpacing: 0.5 },
+  sheetClose: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sheetCloseT: { color: '#6B4A1B', fontWeight: '700' },
+  sheetLabel: { color: '#8B6D3B', fontWeight: '700', marginBottom: 8, marginTop: 6 },
+  pillWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  regionPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#F7F4EE',
+    borderWidth: 1,
+    borderColor: 'rgba(201,162,39,0.2)',
+  },
+  regionPillOn: { backgroundColor: '#6B4A1B', borderColor: '#6B4A1B' },
+  regionPillT: { color: '#5D4037', fontWeight: '700', fontSize: 13 },
+  regionPillTOn: { color: '#fff' },
+  marketBtn: {
+    marginTop: 10,
+    marginBottom: 4,
+    backgroundColor: '#E89020',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  marketBtnT: { color: '#fff', fontWeight: '800', fontSize: 15 },
   search: {
     marginHorizontal: 12,
     marginTop: 6,
@@ -316,6 +502,13 @@ const styles = StyleSheet.create({
     padding: 16,
     minHeight: 92,
     justifyContent: 'center',
+  },
+  bannerImg: {
+    marginTop: 10,
+    marginBottom: 6,
+    borderRadius: 14,
+    width: '100%',
+    height: 92,
   },
   bannerK: { color: '#F5D76E', fontSize: 20, fontWeight: '800' },
   bannerR: { color: 'rgba(255,255,255,0.72)', marginTop: 4, fontSize: 12 },

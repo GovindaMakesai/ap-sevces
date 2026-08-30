@@ -40,7 +40,9 @@ function sanitizeChatMediaUrl(raw) {
 }
 
 async function isRoomHost(socket, channel) {
-  return liveRoomService.isRoomOwner(channel, socket.userId);
+  if (await liveRoomService.isRoomOwner(channel, socket.userId)) return true;
+  /* Platform owner / staff can use host-level room tools (seats already via moderator). */
+  return liveRoomService.isPlatformAdminUser(socket.userId);
 }
 
 async function isRoomModerator(socket, channel) {
@@ -70,15 +72,34 @@ function registerLiveSocket(io) {
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const userRes = await db.query(
-        `SELECT is_active FROM users WHERE id = $1`,
+        `SELECT is_active, role, email, first_name FROM users WHERE id = $1`,
         [decoded.userId]
       );
       if (!userRes.rows[0] || userRes.rows[0].is_active === false) {
         return next(new Error('Your account has been deactivated'));
       }
+      const row = userRes.rows[0];
+      let role = row.role || decoded.role || null;
+      if (liveRoomService.isPlatformOwnerEmail(row.email)) {
+        if (!liveRoomService.isPlatformAdminRole(role)) {
+          try {
+            await db.query(
+              `UPDATE users SET role = 'super_admin', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+              [decoded.userId]
+            );
+          } catch (_e) {}
+          role = 'super_admin';
+        } else {
+          role = 'super_admin';
+        }
+      }
       socket.userId = String(decoded.userId);
-      socket.userRole = decoded.role || null;
-      socket.data.displayName = safeDisplayName(decoded.first_name || decoded.name || 'User', 32);
+      socket.userRole = role;
+      socket.userEmail = row.email || null;
+      socket.data.displayName = safeDisplayName(
+        decoded.first_name || row.first_name || decoded.name || 'User',
+        32
+      );
       return next();
     } catch (_err) {
       return next(new Error('Invalid token'));
@@ -461,14 +482,7 @@ function registerLiveSocket(io) {
         const room = await liveRoomService.findByChannel(channel);
         const isTargetHost = room && String(room.host_user_id) === targetUserId;
         if (isTargetHost) {
-          /* Prefer live DB role over JWT (stale tokens may omit/outdate role) */
-          let actorRole = socket.userRole;
-          try {
-            const actorRes = await db.query(`SELECT role FROM users WHERE id = $1`, [socket.userId]);
-            if (actorRes.rows[0]?.role) actorRole = actorRes.rows[0].role;
-            socket.userRole = actorRole;
-          } catch (_e) { /* keep jwt role */ }
-          if (!liveRoomService.isPlatformAdminRole(actorRole)) {
+          if (!(await liveRoomService.isPlatformAdminUser(socket.userId))) {
             if (ack) ack({ ok: false, message: 'Only a platform admin can kick the live host' });
             return;
           }
@@ -953,7 +967,8 @@ function registerLiveSocket(io) {
           return;
         }
 
-        const coinAmount = parseInt(payload?.amount, 10);
+        const giftQty = Math.max(1, Math.min(10000, parseInt(payload?.qty, 10) || 1));
+        const coinAmount = parseInt(payload?.amount, 10) || parseInt(payload?.coinAmount, 10) || parseInt(payload?.coin_amount, 10);
         if (!coinAmount || coinAmount <= 0) {
           clearTimeout(giftTimer);
           safeAck(ack, answeredRef, { ok: false, message: 'Invalid gift amount' });
@@ -1013,10 +1028,11 @@ function registerLiveSocket(io) {
           liveRoomId: room.id,
           giftType,
           coinAmount,
-          qty: payload?.qty || 1,
+          qty: giftQty,
           emoji: giftEmoji,
           fromName,
           toName,
+          clientRequestId: payload?.clientRequestId || payload?.client_request_id || payload?.requestId,
         });
 
         const charged = Number(result.gift?.coin_amount || coinAmount);
@@ -1034,7 +1050,7 @@ function registerLiveSocket(io) {
           giftName: giftName || giftSlug || giftType,
           amount: charged,
           coins: charged,
-          qty: payload?.qty || 1,
+          qty: giftQty,
           at: Date.now(),
         };
 
@@ -1044,6 +1060,7 @@ function registerLiveSocket(io) {
           ok: true,
           data: {
             gift,
+            lucky: result.lucky || null,
             balance: result.sender_balance || null,
             platform_fee: result.platform_fee,
             creator_amount: result.creator_amount,
@@ -1053,6 +1070,15 @@ function registerLiveSocket(io) {
         /* Room broadcast only — sender is already in live:{channel}; a second
            socket.emit made gift banners/chat appear 2–3× for the sender. */
         io.to(`live:${channel}`).emit('live:gift', gift);
+        if (result.lucky) {
+          io.to(`live:${channel}`).emit('live:lucky_gift', {
+            ...result.lucky,
+            fromUserId: secretSender ? null : socket.userId,
+            from: secretSender ? 'Secret Fan' : fromName,
+            toUserId: receiverId,
+            at: Date.now(),
+          });
+        }
 
         try {
           const pkBattleService = require('../services/pkBattleService');
@@ -1407,6 +1433,70 @@ function registerLiveSocket(io) {
       }
     });
 
+    socket.on('live:lucky_box_send', async (payload, ack) => {
+      const answeredRef = { answered: false };
+      const timer = setTimeout(() => {
+        safeAck(ack, answeredRef, { ok: false, message: 'Lucky box timed out' });
+      }, 20000);
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        const room = await liveRoomService.findByChannel(channel);
+        if (!room) {
+          clearTimeout(timer);
+          safeAck(ack, answeredRef, { ok: false, message: 'Room not found' });
+          return;
+        }
+        const luckyBoxService = require('../services/luckyBoxService');
+        const box = await luckyBoxService.createBox({
+          senderId: socket.userId,
+          liveRoomId: room.id,
+          channel,
+          hostUserId: room.host_user_id,
+          mode: payload?.mode,
+          claimMethod: payload?.claimMethod || payload?.claim_method,
+          participate: payload?.participate,
+          unitCoins: payload?.unitCoins || payload?.unit_coins,
+          winnerCount: payload?.winnerCount || payload?.winner_count,
+          durationSec: payload?.durationSec || payload?.duration_sec,
+          senderName: socket.data.liveDisplayName || socket.data.displayName || 'User',
+          senderPic: payload?.senderPic || null,
+          clientRequestId: payload?.clientRequestId || payload?.client_request_id,
+        });
+        const emitFn = (event, data) => io.to(`live:${channel}`).emit(event, data);
+        if (!box.replayed) luckyBoxService.scheduleBox(box, emitFn);
+        io.to(`live:${channel}`).emit('live:lucky_box', box);
+        clearTimeout(timer);
+        safeAck(ack, answeredRef, { ok: true, data: box });
+      } catch (err) {
+        clearTimeout(timer);
+        safeAck(ack, answeredRef, { ok: false, message: err.message || 'Could not send lucky box' });
+      }
+    });
+
+    socket.on('live:lucky_box_claim', async (payload, ack) => {
+      try {
+        const luckyBoxService = require('../services/luckyBoxService');
+        const result = await luckyBoxService.claimGrab({
+          boxId: payload?.boxId || payload?.id,
+          userId: socket.userId,
+          displayName: socket.data.liveDisplayName || socket.data.displayName,
+        });
+        const ch = sanitizeChannel(result.box?.channel || payload?.channel || currentChannel);
+        io.to(`live:${ch}`).emit('live:lucky_box_update', result.box);
+        if (result.prize > 0 && !result.replayed) {
+          io.to(`live:${ch}`).emit('live:lucky_box_win', {
+            boxId: result.box?.id,
+            userId: socket.userId,
+            name: result.displayName,
+            prize: result.prize,
+          });
+        }
+        if (ack) ack({ ok: true, data: result });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message || 'Could not claim' });
+      }
+    });
+
     socket.on('live:end', async (payload, ack) => {
       try {
         const channel = sanitizeChannel(payload?.channel || currentChannel);
@@ -1624,6 +1714,13 @@ function registerLiveSocket(io) {
       }, 12000);
     });
   });
+
+  try {
+    const luckyBoxService = require('../services/luckyBoxService');
+    luckyBoxService.resumeTimers((channel, event, payload) => {
+      io.to(`live:${channel}`).emit(event, payload);
+    }).catch((err) => console.warn('[lucky-box] resume', err.message));
+  } catch (_e) {}
 }
 
 module.exports = { registerLiveSocket };

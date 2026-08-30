@@ -2,6 +2,22 @@
 const Service = require('../models/Service');
 const db = require('../config/database');
 const { clampLimit } = require('../lib/pagination');
+const { publicWorker } = require('../lib/userDto');
+
+function presentProvider(row) {
+    const base = publicWorker(row) || {};
+    return {
+        ...base,
+        id: row.id,
+        user_id: row.user_id,
+        is_approved: row.is_approved === true || row.approval_status === 'approved',
+        custom_rate: row.custom_rate != null ? Number(row.custom_rate) : null,
+        hourly_rate: Number(row.hourly_rate || base.hourly_rate || 0),
+        rating: Number(row.rating || 0),
+        total_reviews: Number(row.total_reviews || 0),
+        profile_pic: row.profile_pic || row.profile_photo_url || null,
+    };
+}
 
 // ==================== WORKERS FOR SERVICE ====================
 // @desc    Get workers for a specific service
@@ -26,10 +42,15 @@ exports.getWorkersForService = async (req, res) => {
         console.log('📦 Service category:', serviceCategory);
         
         // Prefer exact service match first; if none, fallback to same-category workers.
+        const providerCols = `
+            SELECT DISTINCT ON (w.id) w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate,
+                   w.rating, w.total_reviews, w.is_available, w.is_approved, w.approval_status,
+                   w.profile_photo_url, ws.custom_rate,
+                   u.first_name, u.last_name, u.profile_pic
+        `;
+
         const exactServiceStrictQuery = `
-            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
-                   w.rating, w.total_reviews, w.is_available,
-                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            ${providerCols}
             FROM workers w
             JOIN users u ON w.user_id = u.id
             JOIN worker_services ws ON w.id = ws.worker_id
@@ -37,26 +58,22 @@ exports.getWorkersForService = async (req, res) => {
               AND w.is_available = true
               AND ws.is_available = true
               AND (w.is_approved = true OR w.approval_status = 'approved')
-            ORDER BY w.rating DESC NULLS LAST
+            ORDER BY w.id, w.rating DESC NULLS LAST
         `;
 
         const exactServiceRelaxedQuery = `
-            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
-                   w.rating, w.total_reviews, w.is_available,
-                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            ${providerCols}
             FROM workers w
             JOIN users u ON w.user_id = u.id
             JOIN worker_services ws ON w.id = ws.worker_id
             WHERE ws.service_id = $1
               AND w.is_available = true
               AND ws.is_available = true
-            ORDER BY w.rating DESC NULLS LAST
+            ORDER BY w.id, w.rating DESC NULLS LAST
         `;
 
         const categoryFallbackQuery = `
-            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
-                   w.rating, w.total_reviews, w.is_available,
-                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            ${providerCols}
             FROM workers w
             JOIN users u ON w.user_id = u.id
             JOIN worker_services ws ON w.id = ws.worker_id
@@ -64,18 +81,19 @@ exports.getWorkersForService = async (req, res) => {
             WHERE s.category = $1
               AND w.is_available = true
               AND ws.is_available = true
-            ORDER BY w.rating DESC NULLS LAST
+            ORDER BY w.id, w.rating DESC NULLS LAST
         `;
 
         const anyAvailableWorkersQuery = `
-            SELECT DISTINCT w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate, 
-                   w.rating, w.total_reviews, w.is_available,
-                   u.first_name, u.last_name, u.email, u.phone, u.profile_pic
+            SELECT DISTINCT ON (w.id) w.id, w.user_id, w.bio, w.experience_years, w.hourly_rate,
+                   w.rating, w.total_reviews, w.is_available, w.is_approved, w.approval_status,
+                   w.profile_photo_url, NULL::numeric as custom_rate,
+                   u.first_name, u.last_name, u.profile_pic
             FROM workers w
             JOIN users u ON w.user_id = u.id
             WHERE w.is_available = true
               AND (w.is_approved = true OR w.approval_status = 'approved')
-            ORDER BY w.rating DESC NULLS LAST
+            ORDER BY w.id, w.rating DESC NULLS LAST
         `;
 
         let result = await db.query(exactServiceStrictQuery, [id]);
@@ -103,11 +121,12 @@ exports.getWorkersForService = async (req, res) => {
             category: serviceCategory
         });
         
+        const data = result.rows.map(presentProvider).sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
         res.json({
             success: true,
-            count: result.rows.length,
+            count: data.length,
             source,
-            data: result.rows
+            data
         });
         
     } catch (error) {
@@ -288,8 +307,8 @@ exports.getPopularServices = async (req, res) => {
 // @access  Private/Admin
 exports.createService = async (req, res) => {
     try {
-        // Check if user is admin
-        if (req.userRole !== 'admin') {
+        const role = String(req.userRole || '').toLowerCase();
+        if (!['admin', 'super_admin', 'founder', 'ceo'].includes(role)) {
             return res.status(403).json({
                 success: false,
                 message: 'Only admins can create services'
@@ -336,7 +355,7 @@ exports.createService = async (req, res) => {
 exports.updateService = async (req, res) => {
     try {
         // Check if user is admin
-        if (req.userRole !== 'admin') {
+        if (!['admin', 'super_admin', 'founder', 'ceo'].includes(String(req.userRole || '').toLowerCase())) {
             return res.status(403).json({
                 success: false,
                 message: 'Only admins can update services'

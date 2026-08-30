@@ -198,11 +198,16 @@ exports.getBookingById = async (req, res) => {
             });
         }
 
-        if (booking.customer_id !== req.userId && booking.worker_user_id !== req.userId && req.userRole !== 'admin') {
+        if (booking.customer_id !== req.userId && booking.worker_user_id !== req.userId && !['admin','super_admin','founder','ceo'].includes(String(req.userRole||'').toLowerCase())) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to view this booking'
             });
+        }
+
+        if (!['admin','super_admin','founder','ceo'].includes(String(req.userRole||'').toLowerCase())) {
+            delete booking.worker_phone;
+            delete booking.customer_phone;
         }
 
         res.json({
@@ -342,18 +347,18 @@ exports.updateBookingStatus = async (req, res) => {
             const isCustomer = booking.customer_id === userId;
             const isWorker = worker && booking.worker_id === worker.id;
             
-            if (!isCustomer && !isWorker && req.userRole !== 'admin') {
+            if (!isCustomer && !isWorker && !['admin','super_admin','founder','ceo'].includes(String(req.userRole||'').toLowerCase())) {
                 return res.status(403).json({
                     success: false,
                     message: 'Not authorized to cancel this booking'
                 });
             }
-        } else if (status === 'completed') {
+        } else if (status === 'completed' || status === 'in_progress') {
             const worker = await Worker.findByUserId(userId);
             if (!worker || booking.worker_id !== worker.id) {
                 return res.status(403).json({
                     success: false,
-                    message: 'Only the worker can mark bookings as completed'
+                    message: 'Only the professional can update this booking'
                 });
             }
         }

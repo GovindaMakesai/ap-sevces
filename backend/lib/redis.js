@@ -84,6 +84,30 @@ async function del(key) {
   memoryTtl.delete(key);
 }
 
+async function setNx(key, value, ttlSeconds) {
+  const str = typeof value === 'string' ? value : JSON.stringify(value);
+  const c = await getClient();
+  if (c) {
+    try {
+      const res = ttlSeconds
+        ? await c.set(key, str, 'EX', ttlSeconds, 'NX')
+        : await c.set(key, str, 'NX');
+      return res === 'OK';
+    } catch (err) {
+      console.warn('[redis] setNx failed:', err.message);
+      return false;
+    }
+  }
+  if (memoryTtl.has(key) && memoryTtl.get(key) < Date.now()) {
+    memoryStore.delete(key);
+    memoryTtl.delete(key);
+  }
+  if (memoryStore.has(key)) return false;
+  memoryStore.set(key, str);
+  if (ttlSeconds) memoryTtl.set(key, Date.now() + ttlSeconds * 1000);
+  return true;
+}
+
 async function incr(key, ttlSeconds = 60) {
   const c = await getClient();
   if (c) {
@@ -104,4 +128,4 @@ async function disconnect() {
   }
 }
 
-module.exports = { isEnabled, get, set, del, incr, disconnect, getClient };
+module.exports = { isEnabled, get, set, setNx, del, incr, disconnect, getClient };

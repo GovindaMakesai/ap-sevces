@@ -11,7 +11,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,11 +21,14 @@ import { colors } from '../../config/theme';
 import { Avatar, EmptyState, ErrorBanner, Loading } from '../../components/ui';
 import GiftSheet from '../../components/GiftSheet';
 import GiftBurst from '../../components/GiftBurst';
+import CommentSheet from '../../components/CommentSheet';
 import { resolveGiftAnim } from '../../config/giftAnims';
 import VideoReelItem from '../../components/VideoReelItem';
 import { mapFeedPost } from '../../components/PostGrid';
 import LikerLine, { canDeletePost, mapLiker } from '../../components/LikerLine';
 import { listCacheGet, listCacheSet, prefetchReelPosts } from '../../lib/perf';
+import { newClientRequestId } from '../../lib/clientRequestId';
+import { openCreatorProfile } from '../../lib/navStack';
 
 const { height } = Dimensions.get('window');
 const SCOPES = [
@@ -46,6 +48,8 @@ export default function VideoScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [giftPost, setGiftPost] = useState(null);
+  const [giftSending, setGiftSending] = useState(false);
+  const giftLock = useRef(false);
   const [burst, setBurst] = useState(null);
   const [balance, setBalance] = useState(0);
   const [scope, setScope] = useState('for_you');
@@ -57,8 +61,6 @@ export default function VideoScreen({ navigation, route }) {
   const [muted, setMuted] = useState(false);
   const [holdPause, setHoldPause] = useState(false);
   const [commentsPost, setCommentsPost] = useState(null);
-  const [comments, setComments] = useState([]);
-  const [commentText, setCommentText] = useState('');
   const [likersPost, setLikersPost] = useState(null);
   const [likers, setLikers] = useState([]);
   const [followingIds, setFollowingIds] = useState({});
@@ -184,19 +186,14 @@ export default function VideoScreen({ navigation, route }) {
     setFullMode(false);
     setHoldPause(false);
     handledStartId.current = null;
-    const wasImage = mediaFilter === 'image' || mediaFilter === 'posts';
     navigation.setParams?.({
       startId: undefined,
       userId: shouldReturn ? undefined : params.userId,
       mediaType: 'video',
     });
     if (!shouldReturn) return;
-    if (navigation.canGoBack?.()) {
-      navigation.goBack();
-      return;
-    }
-    if (wasImage) navigation.navigate('Square');
-  }, [navigation, params.userId, mediaFilter]);
+    if (navigation.canGoBack?.()) navigation.goBack();
+  }, [navigation, params.userId]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
@@ -273,16 +270,21 @@ export default function VideoScreen({ navigation, route }) {
     } catch (_e) {}
   };
 
-  const sendGift = async (gift, qty) => {
-    if (!giftPost) return;
+  const sendGift = async (gift, qty, opts = {}) => {
+    if (!giftPost || giftLock.current) return;
+    giftLock.current = true;
+    setGiftSending(true);
     try {
       const cost = Number(gift.coin_cost || gift.cost || 0) * qty;
       const anim = resolveGiftAnim(gift);
+      const clientRequestId = opts.clientRequestId || newClientRequestId('gift');
       await api.post('/wallet/gifts', {
         receiverId: giftPost.authorId,
         giftType: gift.slug || gift.name || 'gift',
         coinAmount: cost,
         qty,
+        clientRequestId,
+        client_request_id: clientRequestId,
       });
       setBurst({
         ...gift,
@@ -295,6 +297,9 @@ export default function VideoScreen({ navigation, route }) {
       setGiftPost(null);
     } catch (e) {
       setError(e.message || 'Gift failed');
+    } finally {
+      giftLock.current = false;
+      setGiftSending(false);
     }
   };
 
@@ -309,26 +314,8 @@ export default function VideoScreen({ navigation, route }) {
     } catch (_e) {}
   };
 
-  const openComments = async (post) => {
+  const openComments = (post) => {
     setCommentsPost(post);
-    try {
-      const res = await api.get(`/social/posts/${post.id}/comments`, null, { auth: false });
-      setComments(api.extractList(res));
-    } catch (_e) {
-      setComments([]);
-    }
-  };
-
-  const sendComment = async () => {
-    const text = commentText.trim();
-    if (!text || !commentsPost) return;
-    try {
-      await api.post(`/social/posts/${commentsPost.id}/comments`, { text, body: text, content: text });
-      setCommentText('');
-      setPosts((prev) => prev.map((p) => (p.id === commentsPost.id ? { ...p, comments: p.comments + 1 } : p)));
-      const res = await api.get(`/social/posts/${commentsPost.id}/comments`, null, { auth: false });
-      setComments(api.extractList(res));
-    } catch (_e) {}
   };
 
   const openLikers = async (post) => {
@@ -457,7 +444,7 @@ export default function VideoScreen({ navigation, route }) {
   }, [active, posts]);
 
   const onOpenProfile = useCallback(
-    (authorId, authorName) => navigation.navigate('CreatorProfile', { userId: authorId, name: authorName }),
+    (authorId, authorName) => openCreatorProfile(navigation, { userId: authorId, name: authorName }),
     [navigation]
   );
   const onToggleMute = useCallback(() => setMuted((m) => !m), []);
@@ -634,37 +621,22 @@ export default function VideoScreen({ navigation, route }) {
         />
         </View>
       )}
-      <GiftSheet visible={!!giftPost} gifts={gifts} balance={balance} onClose={() => setGiftPost(null)} onSend={sendGift} onRecharge={() => { setGiftPost(null); navigation.navigate('Recharge'); }} />
+      <GiftSheet visible={!!giftPost} gifts={gifts} balance={balance} sending={giftSending} onClose={() => setGiftPost(null)} onSend={sendGift} onRecharge={() => { setGiftPost(null); navigation.navigate('Recharge'); }} />
       <GiftBurst gift={burst} onDone={() => setBurst(null)} />
-      <Modal visible={!!commentsPost} transparent animationType="slide" onRequestClose={() => setCommentsPost(null)}>
-        <Pressable style={styles.sheetBg} onPress={() => setCommentsPost(null)}>
-          <Pressable style={[styles.sheet, { paddingBottom: 12 + insets.bottom }]} onPress={() => {}}>
-            <Text style={styles.sheetH}>Comments</Text>
-            <ScrollView style={{ maxHeight: 280 }}>
-              {comments.map((c, i) => {
-                const id = c.user_id || c.userId || c.user?.id;
-                const name = [c.first_name || c.author?.first_name, c.last_name || c.author?.last_name].filter(Boolean).join(' ')
-                  || c.displayName || c.user?.name || c.name || 'User';
-                const pic = c.profile_pic || c.profilePic || c.author?.profile_pic || c.user?.profile_pic;
-                return (
-                  <Pressable key={c.id || i} style={styles.personRow} onPress={() => id && navigation.navigate('CreatorProfile', { userId: id, name })}>
-                    <Avatar uri={pic} name={name} size={40} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetN}>{name}</Text>
-                      <Text style={styles.sheetB}>{c.text || c.body || c.content}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-              {!comments.length ? <Text style={styles.sheetB}>No comments yet. Say something.</Text> : null}
-            </ScrollView>
-            <View style={styles.composer}>
-              <TextInput value={commentText} onChangeText={setCommentText} placeholder="Add a comment…" placeholderTextColor="#9CA3AF" style={styles.input} />
-              <Pressable onPress={sendComment}><Text style={styles.postBtn}>Post</Text></Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <CommentSheet
+        visible={!!commentsPost}
+        post={commentsPost}
+        api={api}
+        user={user}
+        navigation={navigation}
+        onClose={() => setCommentsPost(null)}
+        onCountChange={(delta) => {
+          if (!commentsPost?.id) return;
+          setPosts((prev) =>
+            prev.map((p) => (p.id === commentsPost.id ? { ...p, comments: Math.max(0, (p.comments || 0) + delta) } : p))
+          );
+        }}
+      />
       <Modal visible={!!likersPost} transparent animationType="slide" onRequestClose={() => setLikersPost(null)}>
         <Pressable style={styles.sheetBg} onPress={() => setLikersPost(null)}>
           <Pressable style={[styles.sheet, { paddingBottom: 12 + insets.bottom }]} onPress={() => {}}>
@@ -677,7 +649,7 @@ export default function VideoScreen({ navigation, route }) {
                   || u.name || u.user?.name || 'User';
                 const pic = u.profilePic || u.profile_pic || u.user?.profile_pic;
                 return (
-                  <Pressable key={id || `like-${i}`} style={styles.personRow} onPress={() => id && navigation.navigate('CreatorProfile', { userId: id, name })}>
+                  <Pressable key={id || `like-${i}`} style={styles.personRow} onPress={() => id && openCreatorProfile(navigation, { userId: id, name })}>
                     <Avatar uri={pic} name={name} size={44} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.sheetN}>{name}</Text>

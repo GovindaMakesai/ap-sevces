@@ -1042,19 +1042,26 @@ async function ensureAgencyForOwner(ownerUserId, { name } = {}) {
   if (existing) return existing;
 
   const u = await db.query(
-    `SELECT id, first_name, last_name, role FROM users WHERE id = $1`,
+    `SELECT id, first_name, last_name, role, email FROM users WHERE id = $1`,
     [ownerUserId]
   );
   const user = u.rows[0];
   if (!user) throw new Error('User not found');
   const role = String(user.role || '').toLowerCase();
+  const email = String(user.email || '').trim().toLowerCase();
+  const { PLATFORM_OWNER_EMAIL } = require('../middleware/platformOwner');
+  const isPlatformOwner = Boolean(email) && email === PLATFORM_OWNER_EMAIL;
   let extraAgency = false;
   try {
     extraAgency = await permissionService.userHasRole(ownerUserId, 'agency');
   } catch (_e) {
     extraAgency = false;
   }
-  if (!['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(role) && !extraAgency) {
+  if (
+    !['agency', 'admin', 'super_admin', 'founder', 'ceo'].includes(role) &&
+    !extraAgency &&
+    !isPlatformOwner
+  ) {
     throw new Error('Agency not found for this user');
   }
 

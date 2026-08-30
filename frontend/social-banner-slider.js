@@ -4,6 +4,11 @@
 (function () {
   const DEFAULT_BANNERS = [
     {
+      href: '/rankings.html?app=1',
+      image: '/assets/promos/ap-reality-show.jpg?v=20260903',
+      alt: '1st Reality Show — Antakshari, Sep 1–7 2026',
+    },
+    {
       href: '/lucky-gifts.html?app=1',
       image: '/assets/promos/lucky-gift-rank.svg',
       alt: 'Lucky Gift Ranking',
@@ -37,9 +42,10 @@
 
   function renderSlide(b, i) {
     const hrefAttr = b.href ? ` data-href="${b.href}" role="link" tabindex="0"` : '';
+    const slideExtra = b.className ? ` ${b.className}-slide` : '';
     if (b.image) {
       return `
-      <div class="social-banner-slide social-banner-slide--image" data-index="${i}"${hrefAttr}>
+      <div class="social-banner-slide social-banner-slide--image${slideExtra}" data-index="${i}"${hrefAttr}>
         <div class="social-banner social-banner--image ${b.className || ''}">
           <img class="social-banner-img" src="${b.image}" alt="${b.alt || b.title || 'Promo'}" loading="lazy">
         </div>
@@ -275,9 +281,6 @@
 
     /* Explore / Party keep the image slider only — no extra posters */
     const exploreOnlySlider = document.body.classList.contains('social-explore-page');
-    if (!exploreOnlySlider && document.body.classList.contains('social-profile-page')) {
-      mountMegaOfferPoster(container);
-    }
     if (!exploreOnlySlider) {
       mountPolicyPosters(container);
     }

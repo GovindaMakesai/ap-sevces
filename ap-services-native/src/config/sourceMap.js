@@ -118,6 +118,8 @@ export const PROFILE_MENU = [
   { label: 'Messages', route: 'Chat' },
   { label: 'Become a Pro', route: 'BecomePro' },
   { label: 'Services', route: 'Services' },
+  { label: 'My bookings', route: 'MyServiceBookings' },
+  { label: 'Services Center', route: 'WorkerDashboard', role: 'worker' },
   { label: 'Lucky gifts', route: 'LuckyGifts' },
   { label: 'Privileges', route: 'Privileges' },
   { label: 'Games', route: 'Games' },
