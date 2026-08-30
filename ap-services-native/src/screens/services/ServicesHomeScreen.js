@@ -88,11 +88,11 @@ export default function ServicesHomeScreen({ navigation }) {
         <Text style={styles.sub}>Find trusted professionals for everyday needs</Text>
         <View style={styles.roleRow}>
           <Pressable
-            onPress={() => navigation.navigate(isProvider ? 'WorkerDashboard' : 'BecomePro')}
+            onPress={() => navigation.navigate(isProvider ? 'ServicesCenter' : 'BecomePro')}
             style={styles.roleChip}
           >
             <Ionicons name={isProvider ? 'construct-outline' : 'hammer-outline'} size={14} color="#6B4A1B" />
-            <Text style={styles.roleChipT}>{isProvider ? 'Manage my provider profile' : 'Become a provider'}</Text>
+            <Text style={styles.roleChipT}>{isProvider ? 'Open Services Center' : 'Become a provider'}</Text>
           </Pressable>
         </View>
         <View style={styles.search}>

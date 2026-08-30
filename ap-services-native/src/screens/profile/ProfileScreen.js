@@ -354,20 +354,12 @@ export default function ProfileScreen({ navigation }) {
       <CreamMenuRow icon="storefront-outline" title="Browse / book services" subtitle="Act as a customer" onPress={() => navigation.navigate('Services')} />
       <CreamMenuRow icon="calendar-outline" title="My bookings" subtitle="Jobs you booked" onPress={() => navigation.navigate('MyServiceBookings')} />
       {worker ? (
-        <>
-          <CreamMenuRow
-            icon="grid-outline"
-            title="Services Center"
-            subtitle="Jobs, earnings, availability"
-            onPress={() => navigation.navigate('WorkerDashboard')}
-          />
-          <CreamMenuRow
-            icon="construct-outline"
-            title="Manage my offerings"
-            subtitle="Edit services, rates, bio"
-            onPress={() => navigation.navigate('BecomePro')}
-          />
-        </>
+        <CreamMenuRow
+          icon="grid-outline"
+          title="Services Center"
+          subtitle="Offerings, jobs, availability"
+          onPress={() => navigation.navigate('ServicesCenter')}
+        />
       ) : (
         <CreamMenuRow
           icon="hammer-outline"

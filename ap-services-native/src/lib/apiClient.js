@@ -59,6 +59,11 @@ export class ApiClient {
     const ms = timeoutMs != null ? timeoutMs : defaultTimeout;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ms);
+    /* RN FormData can fail `instanceof FormData` across realms — detect both ways. */
+    const isFormData =
+      Boolean(body) &&
+      (typeof FormData !== 'undefined') &&
+      (body instanceof FormData || Object.prototype.toString.call(body) === '[object FormData]');
     try {
       let token = auth && this.tokenProvider ? await this.tokenProvider() : null;
       if (auth && token && !isJwtUsable(token) && this.refreshHandler) {
@@ -69,11 +74,11 @@ export class ApiClient {
           method,
           headers: {
             Accept: 'application/json',
-            ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
             ...(headers || {}),
           },
-          body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+          body: isFormData ? body : body ? JSON.stringify(body) : undefined,
           signal: controller.signal,
         });
         const json = await res.json().catch(() => ({}));

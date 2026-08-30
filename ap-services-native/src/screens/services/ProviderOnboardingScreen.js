@@ -33,6 +33,11 @@ export default function ProviderOnboardingScreen({ navigation }) {
   const [photos, setPhotos] = useState([]);
   const [customBusy, setCustomBusy] = useState(false);
 
+  const goCenter = () => {
+    if (navigation.canGoBack?.()) navigation.goBack();
+    else navigation.navigate('ServicesCenter');
+  };
+
   const reloadProfile = useCallback(async () => {
     const me = await api.get('/workers/dashboard').catch(() => ({}));
     const profile = workerProfileFromDashboard(api.unwrap(me));
@@ -81,8 +86,90 @@ export default function ProviderOnboardingScreen({ navigation }) {
       selectionLimit: 6,
     });
     if (pick.canceled) return;
-    const next = [...photos, ...(pick.assets || [])].slice(0, 6);
-    setPhotos(next);
+    setPhotos([...photos, ...(pick.assets || [])].slice(0, 6));
+  };
+
+  const friendlyErr = (e) => {
+    const msg = String(e?.message || e || '');
+    if (/route not found/i.test(msg)) {
+      return 'Could not reach the offerings API. Pull to refresh the app, or try again in a moment.';
+    }
+    if (/worker profile not found/i.test(msg)) {
+      return 'Save your provider profile first, then add a custom category.';
+    }
+    const details = e?.body?.errors?.map((x) => x.msg).filter(Boolean).join('\n');
+    return details || msg || 'Something went wrong';
+  };
+
+  const ensureWorker = async () => {
+    if (already) return;
+    try {
+      await api.post('/workers/register', {
+        bio: bio.trim() || 'Service provider',
+        experience_years: parseInt(years, 10) || 0,
+        hourly_rate: Number(rate) || 399,
+        services: selected.map((id) => ({ serviceId: id })),
+      });
+    } catch (e) {
+      if (!/already have a worker profile/i.test(String(e.message || ''))) throw e;
+    }
+    setAlready(true);
+    await refreshUser?.();
+  };
+
+  const saveCustom = async (showAlert = true) => {
+    if (!customName.trim() || !customCategory.trim()) {
+      if (showAlert) setError('Enter a service name and your own category.');
+      return;
+    }
+    setCustomBusy(true);
+    setError('');
+    try {
+      await ensureWorker();
+
+      let res;
+      if (photos.length) {
+        const form = new FormData();
+        form.append('name', customName.trim());
+        form.append('category', customCategory.trim());
+        form.append('description', customDesc.trim());
+        form.append('base_price', String(Number(rate) || 399));
+        form.append('price_type', 'hourly');
+        photos.forEach((p, i) => {
+          form.append('photos', {
+            uri: p.uri,
+            name: `service-${i}.jpg`,
+            type: p.mimeType || 'image/jpeg',
+          });
+        });
+        res = await api.request('/workers/custom-service', { method: 'POST', body: form });
+      } else {
+        /* JSON path is more reliable on native than empty multipart */
+        res = await api.post('/workers/custom-service', {
+          name: customName.trim(),
+          category: customCategory.trim(),
+          description: customDesc.trim(),
+          base_price: Number(rate) || 399,
+          price_type: 'hourly',
+        });
+      }
+
+      const data = api.unwrap(res);
+      const svcId = data?.service?.id;
+      if (svcId) setSelected((cur) => (cur.includes(svcId) ? cur : [...cur, svcId]));
+      setCustomName('');
+      setCustomCategory('');
+      setCustomDesc('');
+      setPhotos([]);
+      const catalogRes = await api.get('/services', null, { auth: false });
+      setCatalog(api.extractList(catalogRes));
+      if (showAlert) Alert.alert('Added', 'Your category was saved and linked to your profile.');
+    } catch (e) {
+      if (showAlert) setError(friendlyErr(e));
+      else throw e;
+    } finally {
+      setCustomBusy(false);
+    }
   };
 
   const submit = async () => {
@@ -121,99 +208,45 @@ export default function ProviderOnboardingScreen({ navigation }) {
       }
 
       Alert.alert(
-        already ? 'Updated' : 'Submitted',
+        already ? 'Saved' : 'Submitted',
         already
-          ? 'Your offerings were saved.'
-          : 'Your application is waiting for admin approval. You will not receive jobs until approved.'
+          ? 'Your offerings were updated.'
+          : 'Submitted for admin approval. You will not get jobs until approved.'
       );
-      navigation.replace('WorkerDashboard');
+      navigation.navigate('ServicesCenter');
     } catch (e) {
       const msg = String(e.message || '');
       if (/already have a worker profile/i.test(msg)) {
         setAlready(true);
         try {
           await reloadProfile();
-          setError('You already have a provider profile. Update and save below, or add your own category.');
+          setError('You already have a provider profile — update below, then save.');
         } catch (_e) {
-          setError('You already have a provider profile. Open Services Center to manage it.');
+          setError('You already have a provider profile. Open Services Center.');
         }
       } else {
-        const details = e.body?.errors?.map((x) => x.msg).filter(Boolean).join('\n');
-        setError(details || e.message);
+        setError(friendlyErr(e));
       }
     } finally {
       setBusy(false);
     }
   };
 
-  const saveCustom = async (showAlert = true) => {
-    if (!customName.trim() || !customCategory.trim()) {
-      if (showAlert) setError('Enter a service name and your own category.');
-      return;
-    }
-    setCustomBusy(true);
-    setError('');
-    try {
-      if (!already) {
-        // Ensure worker row exists first
-        await api.post('/workers/register', {
-          bio: bio.trim() || 'Service provider',
-          experience_years: parseInt(years, 10) || 0,
-          hourly_rate: Number(rate) || 399,
-          services: selected.map((id) => ({ serviceId: id })),
-        }).catch(async (e) => {
-          if (!/already have a worker profile/i.test(String(e.message || ''))) throw e;
-          setAlready(true);
-        });
-        setAlready(true);
-        await refreshUser?.();
-      }
-
-      const form = new FormData();
-      form.append('name', customName.trim());
-      form.append('category', customCategory.trim());
-      form.append('description', customDesc.trim());
-      form.append('base_price', String(Number(rate) || 399));
-      form.append('price_type', 'hourly');
-      photos.forEach((p, i) => {
-        form.append('photos', {
-          uri: p.uri,
-          name: `service-${i}.jpg`,
-          type: p.mimeType || 'image/jpeg',
-        });
-      });
-      const res = await api.request('/workers/custom-service', { method: 'POST', body: form });
-      const data = api.unwrap(res);
-      const svcId = data?.service?.id;
-      if (svcId) setSelected((cur) => (cur.includes(svcId) ? cur : [...cur, svcId]));
-      setCustomName('');
-      setCustomCategory('');
-      setCustomDesc('');
-      setPhotos([]);
-      const catalogRes = await api.get('/services', null, { auth: false });
-      setCatalog(api.extractList(catalogRes));
-      if (showAlert) Alert.alert('Added', 'Your custom category and pictures were saved.');
-    } catch (e) {
-      if (showAlert) setError(e.message || 'Could not save custom service');
-      else throw e;
-    } finally {
-      setCustomBusy(false);
-    }
-  };
-
   return (
-    <CreamPage title={already ? 'Manage offerings' : 'Become a provider'} navigation={navigation}>
+    <CreamPage title={already ? 'My offerings' : 'Become a provider'} navigation={navigation}>
       {loading ? <Loading /> : (
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <ErrorBanner message={error} />
-          <Text style={styles.h}>{already ? 'Your service offerings' : 'Offer services on AP'}</Text>
+          <Text style={styles.h}>{already ? 'Edit what you offer' : 'Offer services on AP'}</Text>
           <Text style={styles.p}>
-            Same AP account. Customers book you after admin approval. Chat stays inside AP — we never show your phone number on listings.
+            1) Fill bio + rate · 2) Tick catalog services and/or add your own category · 3) Save.
+            Customers book you after admin approval. Your phone number stays private.
           </Text>
           <Field label="About your work" value={bio} onChangeText={setBio} multiline autoCapitalize="sentences" />
           <Field label="Years of experience" value={years} onChangeText={setYears} keyboardType="number-pad" />
           <Field label="Hourly rate (₹)" value={rate} onChangeText={setRate} keyboardType="decimal-pad" />
-          <Text style={styles.sec}>Catalog services</Text>
+
+          <Text style={styles.sec}>Pick from catalog</Text>
           <View style={styles.wrap}>
             {catalog.map((s) => {
               const on = selected.includes(s.id);
@@ -226,14 +259,20 @@ export default function ProviderOnboardingScreen({ navigation }) {
           </View>
 
           <View style={styles.customBox}>
-            <Text style={styles.sec}>Add your own category</Text>
+            <Text style={styles.sec}>Or add your own category</Text>
             <Text style={styles.p}>
-              Prefer something not in the list? Name your service, pick a category label, and add pictures so customers know what you offer.
+              Name the service and a category label (e.g. Home salon). Pictures are optional.
             </Text>
             <Field label="Service name" value={customName} onChangeText={setCustomName} autoCapitalize="words" />
-            <Field label="Your category" value={customCategory} onChangeText={setCustomCategory} autoCapitalize="words" placeholder="e.g. Home salon, AC repair" />
+            <Field
+              label="Category label"
+              value={customCategory}
+              onChangeText={setCustomCategory}
+              autoCapitalize="words"
+              placeholder="e.g. Home salon, AC repair"
+            />
             <Field label="Short description" value={customDesc} onChangeText={setCustomDesc} multiline autoCapitalize="sentences" />
-            <Text style={styles.sec}>Service pictures</Text>
+            <Text style={styles.sec}>Pictures (optional)</Text>
             <View style={styles.photoRow}>
               {photos.map((p) => (
                 <View key={p.uri} style={styles.photoWrap}>
@@ -253,24 +292,20 @@ export default function ProviderOnboardingScreen({ navigation }) {
                 </Pressable>
               ) : null}
             </View>
-            {already ? (
-              <OutlineButton
-                title={customBusy ? 'Saving custom…' : 'Save custom category'}
-                onPress={() => saveCustom(true)}
-                disabled={customBusy}
-                style={{ marginTop: 8 }}
-              />
-            ) : null}
+            <OutlineButton
+              title={customBusy ? 'Saving…' : 'Save this category only'}
+              onPress={() => saveCustom(true)}
+              disabled={customBusy || busy}
+              style={{ marginTop: 8 }}
+            />
           </View>
 
           <GoldButton
-            title={busy ? 'Saving…' : already ? 'Save offerings' : 'Submit for approval'}
+            title={busy ? 'Saving…' : already ? 'Save all offerings' : 'Submit for approval'}
             onPress={submit}
             disabled={busy || customBusy}
           />
-          {already ? (
-            <OutlineButton title="Open Services Center" onPress={() => navigation.navigate('WorkerDashboard')} style={{ marginTop: 10 }} />
-          ) : null}
+          <OutlineButton title="Back to Services Center" onPress={goCenter} style={{ marginTop: 10 }} />
         </ScrollView>
       )}
     </CreamPage>

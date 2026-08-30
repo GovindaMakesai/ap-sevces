@@ -31,7 +31,6 @@ router.get('/earnings', verifyToken, workerController.getEarnings);  // ← BEFO
 router.put('/profile', verifyToken, workerController.updateWorkerProfile);
 router.put('/schedule', verifyToken, workerController.updateWorkerSchedule);
 router.get('/user/:userId', workerController.getWorkerByUserId);
-router.get('/:id', workerController.getWorkerProfile);
 
 // ==================== PROTECTED ROUTES ====================
 // Worker registration
@@ -52,15 +51,27 @@ router.put('/availability',
     workerController.updateAvailability
 );
 
-router.post(
-    '/custom-service',
-    verifyToken,
-    upload.fields([
+/** Optional multipart — JSON body also works when there are no photos. */
+function optionalCustomServiceUpload(req, res, next) {
+    const ct = String(req.headers['content-type'] || '');
+    if (!ct.includes('multipart/form-data')) return next();
+    return upload.fields([
         { name: 'photos', maxCount: 6 },
         { name: 'images', maxCount: 6 },
         { name: 'photo', maxCount: 6 },
-    ]),
-    workerController.createCustomService
-);
+    ])(req, res, next);
+}
+
+const createCustomServiceHandlers = [
+    verifyToken,
+    optionalCustomServiceUpload,
+    workerController.createCustomService,
+];
+
+/* Keep these ABOVE /:id so they never look like a worker uuid. */
+router.post('/custom-service', ...createCustomServiceHandlers);
+router.post('/offerings', ...createCustomServiceHandlers);
+
+router.get('/:id', workerController.getWorkerProfile);
 
 module.exports = router;
