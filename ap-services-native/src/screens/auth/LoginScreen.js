@@ -51,6 +51,8 @@ export default function LoginScreen({ navigation }) {
           <OAuthButton title={oauthBusy === 'facebook' ? 'Opening Facebook…' : 'Continue with Facebook'} ion="logo-facebook" iconColor="#1877f2" onPress={() => oauth('facebook')} disabled={!!oauthBusy || busy} />
           <View style={{ height: 8 }} />
           <OAuthButton title={oauthBusy === 'github' ? 'Opening GitHub…' : 'Continue with GitHub'} ion="logo-github" iconColor="#111827" onPress={() => oauth('github')} disabled={!!oauthBusy || busy} />
+          <View style={{ height: 8 }} />
+          <OutlineButton title="Continue with Phone" onPress={() => navigation.navigate('PhoneAuth')} disabled={!!oauthBusy || busy} />
           <View style={styles.divider}>
             <View style={styles.line} />
             <Text style={styles.divText}>or email</Text>

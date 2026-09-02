@@ -304,7 +304,11 @@ function registerLiveSocket(io) {
 
         const joinedRoom = await liveRoomService.findByChannel(channel);
 
-        if (currentChannel) socket.leave(`live:${currentChannel}`);
+        if (currentChannel && sanitizeChannel(currentChannel) !== channel) {
+          await handleLeave({ intentional: true, channel: currentChannel });
+        } else if (currentChannel) {
+          socket.leave(`live:${currentChannel}`);
+        }
         currentChannel = channel;
         socket.join(`live:${channel}`);
         socket.data.liveChannel = channel;
@@ -1433,6 +1437,25 @@ function registerLiveSocket(io) {
       }
     });
 
+    socket.on('live:party_music', async (payload, ack) => {
+      try {
+        const channel = sanitizeChannel(payload?.channel || currentChannel);
+        if (!(await isRoomHost(socket, channel))) {
+          if (ack) ack({ ok: false, message: 'Only host can play party music' });
+          return;
+        }
+        const url = String(payload?.url || '').trim();
+        if (!url) {
+          if (ack) ack({ ok: false, message: 'Missing music URL' });
+          return;
+        }
+        io.to(`live:${channel}`).emit('live:party_music', { channel, url });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        if (ack) ack({ ok: false, message: err.message });
+      }
+    });
+
     socket.on('live:lucky_box_send', async (payload, ack) => {
       const answeredRef = { answered: false };
       const timer = setTimeout(() => {
@@ -1572,18 +1595,33 @@ function registerLiveSocket(io) {
       }
     };
 
-    const handleLeave = async ({ intentional = false } = {}) => {
-      if (!currentChannel) return;
-      const channel = currentChannel;
-      const wasHost = Boolean(socket.data.isHost);
+    const handleLeave = async ({ intentional = false, channel: forcedChannel } = {}) => {
+      const channel = sanitizeChannel(forcedChannel || currentChannel);
+      if (!channel) return;
+      const isCurrent = currentChannel && String(currentChannel) === String(channel);
+      let wasHost = false;
+      if (isCurrent) {
+        wasHost = Boolean(socket.data.isHost);
+      } else {
+        try {
+          const room = await liveRoomService.findByChannel(channel);
+          wasHost = Boolean(room && String(room.host_user_id) === String(socket.userId));
+        } catch (_e) {
+          wasHost = false;
+        }
+      }
       const leavingUserId = socket.userId;
-      currentChannel = null;
-      socket.data.liveChannel = null;
-      socket.leave(`live:${channel}`);
+      const leaveName = String(socket.data.liveDisplayName || 'Someone').slice(0, 32);
+
+      if (isCurrent) {
+        currentChannel = null;
+        socket.data.liveChannel = null;
+        socket.data.isHost = false;
+        socket.leave(`live:${channel}`);
+      }
 
       try {
         if (wasHost) {
-          /* Leave or hard disconnect mid-PK = forfeit (leaver loses) */
           await forfeitActivePkOnChannel(channel, leavingUserId);
           if (intentional) {
             const result = await liveRoomService.hostStepAway({
@@ -1609,7 +1647,6 @@ function registerLiveSocket(io) {
           userId: socket.userId,
         });
         if (updated) {
-          const leaveName = String(socket.data.liveDisplayName || 'Someone').slice(0, 32);
           io.to(`live:${channel}`).emit('live:viewer_count', { viewers: updated.viewer_count });
           io.to(`live:${channel}`).emit('live:member_left', {
             userId: socket.userId,
@@ -1638,7 +1675,10 @@ function registerLiveSocket(io) {
     };
 
     socket.on('live:leave', async (payload, ack) => {
-      await handleLeave({ intentional: true });
+      await handleLeave({
+        intentional: true,
+        channel: sanitizeChannel(payload?.channel) || currentChannel,
+      });
       if (typeof ack === 'function') ack({ ok: true });
     });
 

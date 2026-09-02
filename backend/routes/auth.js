@@ -7,7 +7,9 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const FacebookStrategy = require('passport-facebook').Strategy;
 const authController = require('../controllers/authController');
+const phoneAuthController = require('../controllers/phoneAuthController');
 const { verifyToken } = require('../middleware/auth');
+const { phoneOtpSendLimiter, phoneOtpVerifyLimiter } = require('../middleware/security');
 const upload = require('../middleware/upload');
 const {
     validateRegistration,
@@ -180,6 +182,8 @@ const ensureGoogleCode = (req, res, next) => {
 // Public routes
 router.post('/register', validateRegistration, checkValidation, authController.register);
 router.post('/login', validateLogin, checkValidation, authController.login);
+router.post('/phone/send-otp', phoneOtpSendLimiter, phoneAuthController.sendOtp);
+router.post('/phone/verify-otp', phoneOtpVerifyLimiter, phoneAuthController.verifyOtp);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.post('/exchange-code', oauthLimiter, authController.exchangeCode);

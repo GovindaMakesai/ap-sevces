@@ -17,7 +17,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useLiveMini } from '../../context/LiveMiniContext';
 import RoomCard from '../../components/RoomCard';
+import { navigateToLiveRoom } from '../../lib/navigateToLiveRoom';
 import { shouldRefresh } from '../../lib/queryCache';
 
 const TABS = [
@@ -152,6 +154,7 @@ function BannerSlider({ navigation }) {
 }
 
 function RoomsGrid({ tabId, api, q, navigation }) {
+  const liveMini = useLiveMini();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const lastFetch = useRef(0);
@@ -236,8 +239,12 @@ function RoomsGrid({ tabId, api, q, navigation }) {
   }, [applyFilter, q]);
 
   const openRoom = useCallback(
-    (item) => navigation.navigate(item.isParty ? 'PartyRoom' : 'LiveRoom', item),
-    [navigation]
+    (item) => {
+      navigateToLiveRoom(navigation, liveMini, item).catch(() => {
+        navigation.navigate(item.isParty ? 'PartyRoom' : 'LiveRoom', item);
+      });
+    },
+    [liveMini, navigation]
   );
 
   return (
@@ -299,6 +306,11 @@ export default function ExploreScreen({ navigation }) {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
+      <LinearGradient
+        colors={['rgba(232,197,120,0.28)', 'rgba(253,248,238,0)']}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       <View style={styles.patternHead}>
         <View style={styles.tabRow}>
           <ScrollView
@@ -307,12 +319,31 @@ export default function ExploreScreen({ navigation }) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabs}
           >
-            {TABS.map((t, i) => (
-              <Pressable key={t.id} onPress={() => changeTab(i)} style={styles.tab}>
-                <Text style={[styles.tabT, tabIndex === i && !t.screen && styles.tabTOn]}>{t.label}</Text>
-                {tabIndex === i && !t.screen ? <View style={styles.tabLine} /> : null}
-              </Pressable>
-            ))}
+            {TABS.map((t, i) => {
+              const active = tabIndex === i && !t.screen;
+              return (
+                <Pressable
+                  key={t.id}
+                  onPress={() => changeTab(i)}
+                  style={[styles.tabPill, active && styles.tabPillOn]}
+                >
+                  {active ? (
+                    <LinearGradient
+                      colors={['#E8C578', '#C9A227']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.tabPillGrad}
+                    >
+                      <Text style={[styles.tabT, styles.tabTOn]}>{t.label}</Text>
+                    </LinearGradient>
+                  ) : (
+                    <View style={styles.tabPillInner}>
+                      <Text style={styles.tabT}>{t.label}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
           </ScrollView>
           <View style={styles.topIcons}>
             <Pressable
@@ -357,7 +388,7 @@ export default function ExploreScreen({ navigation }) {
       <Pressable onPress={() => navigation.navigate('GoLive', { isParty: tab === 'party' })} style={styles.fabWrap}>
         <LinearGradient colors={['#F5C542', '#E89020']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
           <Ionicons name="videocam" size={18} color="#fff" />
-          <Text style={styles.fabT}>Start Live</Text>
+          <Text style={styles.fabT}>{tab === 'party' ? 'PARTY' : 'Start Live'}</Text>
         </LinearGradient>
       </Pressable>
 
@@ -421,19 +452,44 @@ export default function ExploreScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F7F4EE' },
+  root: { flex: 1, backgroundColor: '#FAF6EE' },
   patternHead: {
-    backgroundColor: '#FBF7F0',
+    backgroundColor: '#FDF8EE',
     paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(201,162,39,0.18)',
   },
-  tabRow: { flexDirection: 'row', alignItems: 'flex-end', paddingRight: 8 },
-  tabs: { paddingHorizontal: 10, gap: 18, alignItems: 'flex-end', minHeight: 40 },
-  tab: { paddingBottom: 8, alignItems: 'center', flexShrink: 0 },
-  tabT: { color: '#C4A574', fontSize: 16, fontWeight: '600' },
-  tabTOn: { color: '#6B4A1B', fontWeight: '800', fontSize: 18 },
-  tabLine: { marginTop: 4, width: 18, height: 3, borderRadius: 2, backgroundColor: '#6B4A1B' },
+  tabRow: { flexDirection: 'row', alignItems: 'center', paddingRight: 8 },
+  tabs: { paddingHorizontal: 10, gap: 6, alignItems: 'center', paddingVertical: 6 },
+  tabPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(201,162,39,0.28)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    overflow: 'hidden',
+    shadowColor: '#6B4F10',
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  tabPillOn: {
+    borderColor: 'transparent',
+    shadowColor: '#A67C1A',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tabPillGrad: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  tabPillInner: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  tabT: { color: '#8A5A12', fontSize: 12, fontWeight: '700' },
+  tabTOn: { color: '#fff', fontWeight: '800', fontSize: 13 },
   topIcons: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: 2 },
   trophy: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   globalPill: {

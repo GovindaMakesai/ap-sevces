@@ -17,7 +17,10 @@ import { colors } from './src/config/theme';
 import { requireScreen } from './src/lib/deferScreen';
 import MainTabs from './src/navigation/RootNavigator';
 import WelcomeScreen from './src/screens/auth/WelcomeScreen';
+import PhoneAuthScreen from './src/screens/auth/PhoneAuthScreen';
 import { extractNotificationData, resolvePushRoute } from './src/lib/push';
+import { navigationLinking, parseDeepLink } from './src/lib/deepLinks';
+import * as Linking from 'expo-linking';
 
 /* Clear leftover FLAG_SECURE from a prior live/PK session so party + rest of app stay screenshotable */
 clearLiveSecure('app_boot');
@@ -125,10 +128,23 @@ function Root() {
     return () => sub.remove();
   }, []);
 
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    const open = (url) => {
+      const route = parseDeepLink(url);
+      if (route && navRef.current?.isReady?.()) {
+        navRef.current.navigate(route.name, route.params);
+      }
+    };
+    Linking.getInitialURL().then((url) => { if (url) open(url); }).catch(() => {});
+    const sub = Linking.addEventListener('url', ({ url }) => open(url));
+    return () => sub.remove();
+  }, [isLoggedIn]);
+
   if (booting) return <Splash />;
 
   return (
-    <NavigationContainer ref={navRef}>
+    <NavigationContainer ref={navRef} linking={navigationLinking}>
       <LiveMiniProvider navigationRef={navRef}>
       <StatusBar style="dark" />
       {isLoggedIn ? <MatchCallBridge /> : null}
@@ -228,6 +244,7 @@ function Root() {
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="PhoneAuth" component={PhoneAuthScreen} options={{ headerShown: false }} />
           </>
         )}
       </Stack.Navigator>

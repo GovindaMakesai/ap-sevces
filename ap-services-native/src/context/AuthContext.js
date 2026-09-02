@@ -165,6 +165,24 @@ export function AuthProvider({ children }) {
     [api, applyAuthPayload]
   );
 
+  const sendPhoneOtp = useCallback(
+    async ({ phone, country = 'IN' }) => {
+      const json = await api.post('/auth/phone/send-otp', { phone, country }, { auth: false });
+      if (json.success === false) throw new Error(json.message || 'Could not send OTP');
+      return json.data || {};
+    },
+    [api]
+  );
+
+  const verifyPhoneOtp = useCallback(
+    async ({ phone, code, country = 'IN' }) => {
+      const json = await api.post('/auth/phone/verify-otp', { phone, code, country }, { auth: false });
+      if (json.success === false) throw new Error(json.message || 'Verification failed');
+      return applyAuthPayload(json);
+    },
+    [api, applyAuthPayload]
+  );
+
   const startOAuth = useCallback(
     async (provider) => {
       if (oauthBusy.current) return;
@@ -233,6 +251,8 @@ export function AuthProvider({ children }) {
       register,
       logout,
       startOAuth,
+      sendPhoneOtp,
+      verifyPhoneOtp,
       exchangeOAuthCode,
       updateProfile,
       refreshUser,
@@ -249,6 +269,8 @@ export function AuthProvider({ children }) {
       refreshToken,
       register,
       startOAuth,
+      sendPhoneOtp,
+      verifyPhoneOtp,
       updateProfile,
       refreshUser,
       user,

@@ -70,6 +70,24 @@ class User {
         return result.rows[0];
     }
 
+    /** Match E.164, national digits, or legacy 10-digit Indian storage. */
+    static async findByPhoneVariants(variants) {
+        const list = [...new Set((variants || []).map((v) => String(v || '').trim()).filter(Boolean))];
+        if (!list.length) return null;
+        const query = 'SELECT * FROM users WHERE phone = ANY($1::text[]) LIMIT 1';
+        const result = await db.query(query, [list]);
+        return result.rows[0] || null;
+    }
+
+    static async setPhoneE164(id, e164) {
+        if (!id || !e164) return User.findById(id);
+        await db.query(
+            `UPDATE users SET phone = $2, phone_provided = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [id, e164]
+        );
+        return User.findById(id);
+    }
+
     static async findByDisplayId(displayId) {
         const n = parseInt(displayId, 10);
         if (!Number.isFinite(n)) return null;

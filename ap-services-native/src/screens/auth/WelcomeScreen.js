@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../config/theme';
-import { AuthCard, ErrorBanner, OAuthButton } from '../../components/ui';
+import { AuthCard, ErrorBanner, OAuthButton, OutlineButton } from '../../components/ui';
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { startOAuth } = useAuth();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -31,7 +33,7 @@ export default function WelcomeScreen() {
         <AuthCard>
           <Image source={require('../../../assets/logo-loading.png')} style={styles.logo} />
           <Text style={styles.title}>Welcome</Text>
-          <Text style={styles.sub}>Continue with Google, Facebook, or GitHub to sign in.</Text>
+          <Text style={styles.sub}>Continue with Google, Facebook, GitHub, or your phone number.</Text>
           <ErrorBanner message={error} />
           <View style={{ height: 8 }} />
           <OAuthButton
@@ -55,6 +57,12 @@ export default function WelcomeScreen() {
             ion="logo-github"
             iconColor="#111827"
             onPress={() => oauth('github')}
+            disabled={!!busy}
+          />
+          <View style={{ height: 10 }} />
+          <OutlineButton
+            title="Continue with Phone"
+            onPress={() => navigation.navigate('PhoneAuth')}
             disabled={!!busy}
           />
 

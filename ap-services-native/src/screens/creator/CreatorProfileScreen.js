@@ -15,8 +15,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useLiveMini } from '../../context/LiveMiniContext';
 import { colors } from '../../config/theme';
 import { mediaUrl } from '../../config/api';
+import { navigateToLiveRoom } from '../../lib/navigateToLiveRoom';
 import { Avatar, Loading } from '../../components/ui';
 import AvatarFrame from '../../components/AvatarFrame';
 import CoupleRing from '../../components/CoupleRing';
@@ -51,6 +53,7 @@ export default function CreatorProfileScreen({ route, navigation }) {
   const { userId, name: passedName } = route.params || {};
   const insets = useSafeAreaInsets();
   const { api, user } = useAuth();
+  const liveMini = useLiveMini();
   const mine = String(user?.id) === String(userId);
   const bootCache = userId ? profileCacheGet(userId) : null;
   const [panel, setPanel] = useState(bootCache?.panel || null);
@@ -245,11 +248,14 @@ export default function CreatorProfileScreen({ route, navigation }) {
     const channel = engagement?.liveChannel;
     if (!channel) return;
     const party = engagement.liveRoomType === 'party';
-    navigation.navigate(party ? 'PartyRoom' : 'LiveRoom', {
+    const params = {
       channel,
       hostId: userId,
       hostName: display,
       isParty: party,
+    };
+    navigateToLiveRoom(navigation, liveMini, params).catch(() => {
+      navigation.navigate(party ? 'PartyRoom' : 'LiveRoom', params);
     });
   };
 

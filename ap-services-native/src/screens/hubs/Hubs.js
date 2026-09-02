@@ -13,6 +13,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../config/theme';
 import { mediaUrl } from '../../config/api';
+import { walletPoints, normalizeWalletBalance } from '../../lib/walletFields';
+import { indianGroup } from '../../lib/format';
 import { Card, EmptyState, ErrorBanner, GoldButton, Kv, Loading, OutlineButton } from '../../components/ui';
 import { CreamPage } from '../../components/creamChrome';
 import LuckyGiftBoard from '../../components/LuckyGiftBoard';
@@ -49,27 +51,44 @@ export { BdCenterScreen, HierarchyScreen, HostAgencyScreen } from '../bd/BdHub';
 
 export function PointsScreen({ navigation }) {
   const { api } = useAuth();
-  const { data, error, loading, load } = useApiLoad(async () => api.unwrap(await api.get('/wallet/balance')), [api]);
+  const { data, error, loading, load } = useApiLoad(async () => {
+    const [balRes, wdRes] = await Promise.all([
+      api.get('/wallet/balance', null, { skipCache: true }),
+      api.get('/wallet/withdrawals', null, { skipCache: true }).catch(() => ({})),
+    ]);
+    const bal = normalizeWalletBalance(api.unwrap(balRes));
+    const withdrawals = api.extractList(wdRes);
+    const unconfirmed = withdrawals.filter((w) => w.status === 'paid').length;
+    return { ...bal, unconfirmed };
+  }, [api]);
+  const pts = walletPoints(data || {});
   if (loading && !data) return <CreamPage title="Points" navigation={navigation}><Loading /></CreamPage>;
   return (
     <CreamPage title="Points" navigation={navigation}>
     <ScrollView style={styles.root} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
       <ErrorBanner message={error} onRetry={load} />
       <Card>
-        <Text style={styles.big}>{data?.points || data?.point_balance || 0}</Text>
+        <Text style={styles.big}>{indianGroup(pts)}</Text>
         <Text style={styles.meta}>Available points</Text>
-        <Kv k="Total" v={data?.points_total || data?.points || 0} />
-        <Kv k="Unconfirmed" v={data?.points_pending || 0} />
+        <Kv k="Total" v={indianGroup(pts)} />
+        <Kv k="Unconfirmed" v={String(data?.unconfirmed ?? 0)} />
       </Card>
       <Card>
         <Text style={styles.h}>Income</Text>
         <Text style={styles.body}>Creator share: 90% · Platform share: 10% on gifts, bookings & live earnings</Text>
-        <Kv k="Livestream" v={data?.live_points || '—'} />
-        <Kv k="Gifts" v={data?.gift_points || '—'} />
-        <Kv k="Bookings" v={data?.booking_points || '—'} />
+        <Kv k="Livestream" v={data?.live_points != null ? indianGroup(data.live_points) : '—'} />
+        <Kv k="Gifts" v={data?.gift_points != null ? indianGroup(data.gift_points) : '—'} />
+        <Kv k="Bookings" v={data?.booking_points != null ? indianGroup(data.booking_points) : '—'} />
       </Card>
-      <GoldButton title="Withdraw points" onPress={() => navigation.navigate('Withdraw')} style={{ margin: 12 }} />
-      <OutlineButton title="History" onPress={() => navigation.navigate('WalletHistory')} style={{ marginHorizontal: 12 }} />
+      <Text style={styles.flowHelp}>
+        How to withdraw or exchange:{'\n'}
+        1. Tap Withdraw / Exchange below{'\n'}
+        2. Choose Cash withdraw or Exchange to coins{'\n'}
+        3. Enter amount · for cash upload QR · submit
+      </Text>
+      <GoldButton title="Withdraw / Exchange" onPress={() => navigation.navigate('Withdraw')} style={{ margin: 12 }} />
+      <GoldButton title="Top up coins" onPress={() => navigation.navigate('Recharge')} style={{ marginHorizontal: 12 }} />
+      <OutlineButton title="History" onPress={() => navigation.navigate('WalletHistory')} style={{ marginHorizontal: 12, marginTop: 8 }} />
     </ScrollView>
     </CreamPage>
   );
@@ -300,6 +319,16 @@ const styles = StyleSheet.create({
   row: { fontWeight: '800', color: colors.textPrimary },
   meta: { color: colors.textSecondary, marginTop: 4, fontSize: 12 },
   body: { color: colors.textSecondary, lineHeight: 20, marginBottom: 10 },
+  flowHelp: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 12,
+    backgroundColor: 'rgba(251,191,36,0.12)',
+    borderRadius: 12,
+    color: '#78350f',
+    fontSize: 13,
+    lineHeight: 20,
+  },
   sec: { marginHorizontal: 16, marginTop: 8, marginBottom: 4, fontWeight: '800', color: colors.gold700 },
   rowBtns: { flexDirection: 'column', gap: 8, marginTop: 10 },
   search: {

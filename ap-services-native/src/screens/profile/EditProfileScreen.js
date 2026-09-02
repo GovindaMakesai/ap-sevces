@@ -10,13 +10,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { mediaUrl } from '../../config/api';
-import { ErrorBanner } from '../../components/ui';
-import { filePart } from '../../lib/pickMedia';
+import { Avatar, ErrorBanner } from '../../components/ui';
+import { filePart, pickFromCamera, pickMedia } from '../../lib/pickMedia';
 
 const MAX_ALBUM = 6;
 
@@ -29,10 +28,21 @@ export default function EditProfileScreen({ navigation }) {
   const [album, setAlbum] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [nameQuota, setNameQuota] = useState(null);
 
   useEffect(() => {
     setPhone(user?.phone || '');
   }, [user?.phone]);
+
+  const loadQuota = useCallback(async () => {
+    try {
+      const res = await api.get('/auth/me', null, { skipCache: true });
+      const nc = res.data?.name_change || api.unwrap(res)?.name_change;
+      if (nc) setNameQuota(nc);
+    } catch (_e) {}
+  }, [api]);
 
   const loadAlbum = useCallback(async () => {
     try {
@@ -44,14 +54,84 @@ export default function EditProfileScreen({ navigation }) {
     }
   }, [api]);
 
-  useFocusEffect(useCallback(() => { loadAlbum(); }, [loadAlbum]));
+  useFocusEffect(
+    useCallback(() => {
+      loadAlbum();
+      loadQuota();
+    }, [loadAlbum, loadQuota])
+  );
+
+  const uploadProfilePhoto = async (asset) => {
+    if (!asset) return;
+    setPhotoPreview(asset.uri);
+    setPhotoBusy(true);
+    setError('');
+    try {
+      const form = new FormData();
+      form.append('photo', filePart(asset, 'avatar.jpg'));
+      const res = await api.post('/auth/profile/photo', form);
+      const updated = api.unwrap(res)?.user || res.data?.user;
+      if (updated) await refreshUser?.();
+      else await refreshUser?.();
+    } catch (e) {
+      setPhotoPreview(null);
+      setError(e.message || 'Could not update profile photo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const changePhoto = () => {
+    Alert.alert('Profile photo', 'Choose a source', [
+      {
+        text: 'Take photo',
+        onPress: async () => uploadProfilePhoto(await pickFromCamera('image')),
+      },
+      {
+        text: 'Choose from gallery',
+        onPress: async () => uploadProfilePhoto(await pickMedia('image')),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   const save = async () => {
+    if (!first_name.trim()) {
+      setError('First name is required');
+      return;
+    }
+    const prevName = `${user?.first_name || user?.firstName || ''} ${user?.last_name || user?.lastName || ''}`
+      .trim()
+      .replace(/\s+/g, ' ');
+    const nextName = `${first_name} ${last_name}`.trim().replace(/\s+/g, ' ');
+    const nameChanging = prevName !== nextName;
+    if (nameChanging) {
+      const freeLeft = Number(nameQuota?.free_left ?? 2);
+      const fee = Number(nameQuota?.fee_coins || 10000);
+      if (freeLeft <= 0) {
+        const ok = await new Promise((resolve) => {
+          Alert.alert(
+            'Name change fee',
+            `You've used 2 free name changes this month.\n\nChange name for ${fee.toLocaleString()} coins?`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Continue', onPress: () => resolve(true) },
+            ]
+          );
+        });
+        if (!ok) return;
+      }
+    }
     setBusy(true);
     setError('');
     try {
-      await updateProfile({ first_name, last_name, phone });
+      const res = await api.patch('/auth/profile', { first_name: first_name.trim(), last_name: last_name.trim(), phone });
+      const charged = Number(api.unwrap(res)?.name_change_charged || res.data?.name_change_charged || 0);
+      if (res.data?.name_change) setNameQuota(res.data.name_change);
       await refreshUser?.();
+      if (charged > 0) {
+        Alert.alert('Saved', `Profile updated. ${charged.toLocaleString()} coins charged for name change.`);
+      }
       navigation.goBack();
     } catch (e) {
       setError(e.message);
@@ -65,9 +145,8 @@ export default function EditProfileScreen({ navigation }) {
       Alert.alert('Album full', `Maximum ${MAX_ALBUM} background photos`);
       return;
     }
-    const pick = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
-    if (pick.canceled) return;
-    const asset = pick.assets[0];
+    const asset = await pickMedia('image');
+    if (!asset) return;
     const form = new FormData();
     form.append('photo', filePart(asset));
     try {
@@ -87,6 +166,8 @@ export default function EditProfileScreen({ navigation }) {
     }
   };
 
+  const avatarUri = photoPreview || mediaUrl(user?.profile_pic || user?.profilePic || user?.avatar);
+  const freeLeft = nameQuota?.free_left;
   const slots = [...album];
   while (slots.length < MAX_ALBUM) slots.push(null);
 
@@ -101,17 +182,35 @@ export default function EditProfileScreen({ navigation }) {
       </View>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <ErrorBanner message={error} />
+        <View style={styles.avatarWrap}>
+          <Pressable onPress={changePhoto} disabled={photoBusy} style={styles.avatarBtn}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+            ) : (
+              <Avatar name={first_name || user?.email} size={96} />
+            )}
+            <View style={styles.avatarCam}>
+              <Ionicons name={photoBusy ? 'hourglass-outline' : 'camera'} size={18} color="#fff" />
+            </View>
+          </Pressable>
+          <Text style={styles.avatarHint}>{photoBusy ? 'Uploading photo…' : 'Tap to change profile picture'}</Text>
+        </View>
+
         <Text style={styles.label}>FIRST NAME</Text>
         <TextInput value={first_name} onChangeText={setFirst} style={styles.input} autoCapitalize="words" />
         <Text style={styles.label}>LAST NAME</Text>
         <TextInput value={last_name} onChangeText={setLast} style={styles.input} autoCapitalize="words" placeholder="Optional" placeholderTextColor="#C4A574" />
-        <Text style={styles.hint}>2 free name changes per month. 3rd+ costs 10,000 coins.</Text>
+        <Text style={styles.hint}>
+          {freeLeft != null
+            ? `${freeLeft} free name change${freeLeft === 1 ? '' : 's'} left this month. 3rd+ costs 10,000 coins.`
+            : '2 free name changes per month. 3rd+ costs 10,000 coins.'}
+        </Text>
         <Text style={styles.label}>PHONE</Text>
         <TextInput value={phone} onChangeText={setPhone} style={styles.input} keyboardType="phone-pad" placeholder="Your mobile number" placeholderTextColor="#C4A574" />
 
         <View style={styles.albumHead}>
           <Text style={styles.albumTitle}>Album <Text style={styles.albumCount}>{album.length}/{MAX_ALBUM}</Text></Text>
-          <Text style={styles.albumHint}>Crop and set background photos for your profile</Text>
+          <Text style={styles.albumHint}>Background photos for your profile</Text>
         </View>
         <View style={styles.albumGrid}>
           {slots.map((item, i) => (
@@ -161,6 +260,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: { paddingHorizontal: 20, paddingBottom: 40 },
+  avatarWrap: { alignItems: 'center', marginBottom: 8 },
+  avatarBtn: { position: 'relative' },
+  avatarImg: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#E8DCC4' },
+  avatarCam: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF6B00',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFBF0',
+  },
+  avatarHint: { marginTop: 8, fontSize: 12, color: '#A1887F' },
   label: { fontSize: 11, fontWeight: '800', color: '#8B6D3B', letterSpacing: 0.6, marginTop: 14, marginBottom: 6 },
   input: {
     backgroundColor: '#fff',

@@ -78,6 +78,23 @@ const matchLimiter = rateLimit({
   message: { success: false, message: 'Too many match requests. Please slow down.' },
 });
 
+const phoneOtpSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.PHONE_OTP_SEND_LIMIT_MAX) || (isProduction ? 5 : 12),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  message: { success: false, message: 'Too many OTP requests. Please wait and try again.' },
+});
+
+const phoneOtpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.PHONE_OTP_VERIFY_LIMIT_MAX) || (isProduction ? 15 : 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many verification attempts. Please wait and try again.' },
+});
+
 function applySecurityMiddleware(app) {
   app.use(
     helmet({
@@ -92,4 +109,4 @@ function applySecurityMiddleware(app) {
   app.use(globalLimiter);
 }
 
-module.exports = { applySecurityMiddleware, authLimiter, walletLimiter, globalLimiter, oauthLimiter, matchLimiter };
+module.exports = { applySecurityMiddleware, authLimiter, walletLimiter, globalLimiter, oauthLimiter, matchLimiter, phoneOtpSendLimiter, phoneOtpVerifyLimiter };

@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useLiveMini } from '../../context/LiveMiniContext';
 import { colors } from '../../config/theme';
 import { Avatar, EmptyState } from '../../components/ui';
 import { CreamPage } from '../../components/creamChrome';
+import { navigateToLiveRoom } from '../../lib/navigateToLiveRoom';
 import { debounce } from '../../lib/perf';
 
 const SearchRow = React.memo(function SearchRow({ item, onPress }) {
@@ -17,6 +19,7 @@ const SearchRow = React.memo(function SearchRow({ item, onPress }) {
 
 export default function SearchScreen({ navigation, route }) {
   const { api } = useAuth();
+  const liveMini = useLiveMini();
   const [q, setQ] = useState(route.params?.q || '');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -54,10 +57,16 @@ export default function SearchScreen({ navigation, route }) {
 
   const openResult = useCallback(
     (item) => {
-      if (item.channel) navigation.navigate(item.type === 'party' ? 'PartyRoom' : 'LiveRoom', item);
-      else navigation.navigate('CreatorProfile', { userId: item.id || item.userId });
+      if (item.channel) {
+        navigateToLiveRoom(navigation, liveMini, {
+          ...item,
+          isParty: item.type === 'party',
+        }).catch(() => {
+          navigation.navigate(item.type === 'party' ? 'PartyRoom' : 'LiveRoom', item);
+        });
+      } else navigation.navigate('CreatorProfile', { userId: item.id || item.userId });
     },
-    [navigation]
+    [liveMini, navigation]
   );
 
   const renderItem = useCallback(({ item }) => <SearchRow item={item} onPress={openResult} />, [openResult]);

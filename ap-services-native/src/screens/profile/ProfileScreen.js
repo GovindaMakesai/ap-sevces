@@ -10,6 +10,7 @@ import { Avatar, ErrorBanner } from '../../components/ui';
 import CoupleRing from '../../components/CoupleRing';
 import { CreamMenuRow } from '../../components/creamChrome';
 import { compactM } from '../../lib/format.js';
+import { walletCoins, walletGiftCoins, walletPoints, normalizeWalletBalance } from '../../lib/walletFields';
 import { parseCpBond } from '../../lib/cpBond';
 import {
   formatUserDisplayId,
@@ -57,14 +58,14 @@ export default function ProfileScreen({ navigation }) {
     try {
       const [s, w, panel, sv, cpHome, workerDash] = await Promise.all([
         api.get(`/social/stats/${user.id}`, null, { auth: false }).catch(() => ({})),
-        api.get('/wallet/balance').catch(() => ({})),
+        api.get('/wallet/balance', null, { skipCache: true }).catch(() => ({})),
         api.get(`/social/creators/${user.id}/profile-panel`, null, { auth: false }).catch(() => ({})),
         api.get('/svip/home').catch(() => ({})),
         api.get('/cp/home').catch(() => ({})),
         api.get('/workers/dashboard').catch(() => ({})),
       ]);
       const sd = api.unwrap(s);
-      const wd = api.unwrap(w);
+      const wd = normalizeWalletBalance(api.unwrap(w));
       const pd = api.unwrap(panel);
       const svd = api.unwrap(sv);
       const cpd = api.unwrap(cpHome);
@@ -72,12 +73,12 @@ export default function ProfileScreen({ navigation }) {
       setStats({
         following: Number(sd.following || sd.followingCount || 0),
         followers: Number(sd.followers || sd.followerCount || 0),
-        level: Number(pd.level || sd.level || user?.level || 1),
+        level: Number(pd.personalLevel || pd.level || sd.level || user?.level || 1),
       });
       setWallet({
-        coins: Number(wd.coin_balance || wd.coins || wd.diamonds || 0),
-        points: Number(wd.points || wd.point_balance || wd.beans || 0),
-        giftCoins: Number(wd.gift_coins || wd.giftCoins || wd.giftable_coins || 0),
+        coins: walletCoins(wd),
+        points: walletPoints(wd),
+        giftCoins: walletGiftCoins(wd),
       });
       setSvip({ level: Number(svd.level || svd.svipLevel || pd.badges?.svipLevel || 0) });
       setCp(cpd || {});
@@ -267,23 +268,6 @@ export default function ProfileScreen({ navigation }) {
         </Pressable>
       </View>
 
-      {host ? (
-        <View style={styles.hostCtas}>
-          <Pressable onPress={() => navigation.navigate('GoLive', { isParty: false })} style={{ flex: 1 }}>
-            <LinearGradient colors={['#FFB347', '#FF6B00']} style={styles.cta}>
-              <Ionicons name="radio" size={16} color="#fff" />
-              <Text style={styles.ctaT}>Go Live</Text>
-            </LinearGradient>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('GoLive', { isParty: true })} style={{ flex: 1 }}>
-            <LinearGradient colors={['#A78BFA', '#7C3AED']} style={styles.cta}>
-              <Ionicons name="people" size={16} color="#fff" />
-              <Text style={styles.ctaT}>Start Party</Text>
-            </LinearGradient>
-          </Pressable>
-        </View>
-      ) : null}
-
       {admin ? (
         <View>
           <MenuSec title={isSuperAdmin(user) ? 'Super Admin' : 'Admin'} />
@@ -377,7 +361,6 @@ export default function ProfileScreen({ navigation }) {
       <CreamMenuRow icon="trophy-outline" title="CP Rankings" accent="#DB2777" onPress={() => navigation.navigate('CpRankings')} />
       <CreamMenuRow icon="shield-outline" title="Level" accent="#2563EB" onPress={() => navigation.navigate('Levels')} />
       <CreamMenuRow icon="eye-outline" title="Visitors" accent="#2563EB" onPress={() => navigation.navigate('Visitors')} />
-      <CreamMenuRow icon="diamond-outline" title="VIP Privileges" onPress={() => navigation.navigate('Vip')} />
       <CreamMenuRow icon="sparkles-outline" title="AP SVIP" accent="#7C3AED" onPress={() => navigation.navigate('Svip')} />
       <CreamMenuRow icon="podium-outline" title="Rankings" onPress={() => navigation.navigate('Rankings')} />
       <CreamMenuRow icon="storefront-outline" title="Store" onPress={() => navigation.navigate('Store')} />

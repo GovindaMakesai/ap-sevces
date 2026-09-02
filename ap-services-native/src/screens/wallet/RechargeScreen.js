@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
@@ -8,6 +8,8 @@ import { colors } from '../../config/theme';
 import { ErrorBanner, Field, GoldButton } from '../../components/ui';
 import { CreamHeader } from '../../components/creamChrome';
 import { indianGroup } from '../../lib/format.js';
+import { filePart } from '../../lib/pickMedia';
+import { normalizeWalletBalance, walletCoins } from '../../lib/walletFields';
 
 const PACKAGES = [
   { inr: 99, coins: 990, bonus: 0 },
@@ -30,11 +32,10 @@ export default function RechargeScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      api.get('/wallet/balance').then((r) => {
-        const d = api.unwrap(r);
-        setBalance(Number(d.coin_balance || d.coins || 0));
+      api.get('/wallet/balance', null, { skipCache: true }).then((r) => {
+        setBalance(walletCoins(normalizeWalletBalance(api.unwrap(r))));
       }).catch(() => {});
-      api.get('/wallet/recharges').then((r) => setHistory(api.extractList(r))).catch(() => {});
+      api.get('/wallet/recharges', null, { skipCache: true }).then((r) => setHistory(api.extractList(r))).catch(() => {});
     }, [api])
   );
 
@@ -55,12 +56,17 @@ export default function RechargeScreen({ navigation }) {
     setError('');
     try {
       const form = new FormData();
-      form.append('amount', String(pkg.inr));
-      form.append('coins', String(total));
-      form.append('utr', utr);
-      if (proof) form.append('payment_proof', { uri: proof, name: 'proof.jpg', type: 'image/jpeg' });
+      form.append('amount_inr', String(pkg.inr));
+      form.append('transaction_id', utr.trim());
+      form.append('payment_method', 'qr_manual');
+      if (proof) {
+        const asset = { uri: proof, fileName: 'proof.jpg', mimeType: 'image/jpeg' };
+        form.append('payment_proof', filePart(asset, 'proof.jpg'));
+      }
       await api.request('/wallet/recharge', { method: 'POST', body: form });
-      navigation.goBack();
+      Alert.alert('Submitted', 'Recharge request sent. Coins credited after admin verifies payment.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -125,7 +131,11 @@ export default function RechargeScreen({ navigation }) {
         </View>
         <Text style={[styles.h, { marginTop: 16 }]}>Recent requests</Text>
         {history.length ? history.slice(0, 8).map((h, i) => (
-          <Text key={i} style={styles.hist}>{h.amount || h.coins} · {h.status || 'pending'} · {h.utr || ''}</Text>
+          <Text key={h.id || i} style={styles.hist}>
+            ₹{h.amount_inr ?? h.amount ?? '—'} · {h.payment_status || h.status || 'pending'}
+            {h.coins_credited ? ` · +${indianGroup(h.coins_credited)} coins` : ''}
+            {h.transaction_id ? ` · ${h.transaction_id}` : ''}
+          </Text>
         )) : <Text style={styles.hist}>No requests yet</Text>}
       </ScrollView>
       <View style={styles.footer}>

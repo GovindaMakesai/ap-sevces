@@ -44,6 +44,11 @@ function validateEnv() {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
     console.warn('⚠️  JWT_SECRET should be at least 16 characters for production');
   }
+  const twilioKeys = ['TWILIO_ACCOUNT_SID', 'TWILIO_API_KEY_SID', 'TWILIO_API_KEY_SECRET', 'TWILIO_VERIFY_SERVICE_SID'];
+  const twilioMissing = twilioKeys.filter((k) => !process.env[k]);
+  if (twilioMissing.length) {
+    console.warn(`⚠️  Twilio Verify not fully configured (${twilioMissing.join(', ')}) — phone OTP login disabled`);
+  }
 }
 
 module.exports = { validateEnv };

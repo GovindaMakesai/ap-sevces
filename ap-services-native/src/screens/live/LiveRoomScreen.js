@@ -11,7 +11,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -28,6 +27,8 @@ import { claimHold, peekHold, releaseHoldIfDifferent } from '../../lib/liveMiniH
 import { colors } from '../../config/theme';
 import GiftSheet from '../../components/GiftSheet';
 import GiftBurst from '../../components/GiftBurst';
+import InAppShareSheet from '../../components/InAppShareSheet';
+import { buildRoomInviteMessage } from '../../lib/roomInvite';
 import LuckyGiftBoard from '../../components/LuckyGiftBoard';
 import LuckyResultOverlay from '../../components/LuckyResultOverlay';
 import {
@@ -64,6 +65,7 @@ import { displayName as formatDisplayName } from '../../lib/apiClient';
 import { sanitizePublicText } from '../../lib/safeText';
 import { mediaUrl } from '../../config/api';
 import { newClientRequestId } from '../../lib/clientRequestId';
+import { walletGiftCoins } from '../../lib/walletFields';
 import {
   ApplyingUserSheet,
   AudienceSheet,
@@ -82,18 +84,30 @@ import {
   SeatInviteModal,
   LiveGuestRail,
   ToolsMenuSheet,
-  WishWidgets,
   GifterRail,
   copyId,
   nowUpdateLabel,
   activeRoomPeople,
   uniqueGames,
   GAME_CENTER,
+  LIVE_MAX_GUESTS,
+  LIVE_MAX_ON_STAGE,
+  DEFAULT_PARTY_MIC_COUNT,
+  PARTY_MAX_SEATS,
 } from './LiveOverlays';
 import RoomPkSheet, { PkBattleHud } from './RoomPkSheet';
 import LiveVideoLayer from '../../components/LiveVideoLayer';
 import { resolvePkRivalChannel, startPkRivalEngine, stopPkRivalEngine } from '../../lib/livePkRival';
 
+const PARTY_SEAT_COUNT = PARTY_MAX_SEATS;
+const PARTY_BACKGROUNDS = [
+  { id: 'cosmic', label: 'Cosmic', colors: ['#4c1d95', '#1e1033', '#0a0612'] },
+  { id: 'neon', label: 'Neon', colors: ['#0f172a', '#581c87', '#be185d'] },
+  { id: 'sunset', label: 'Sunset', colors: ['#7c2d12', '#c2410c', '#1c1917'] },
+  { id: 'ocean', label: 'Ocean', colors: ['#0c4a6e', '#0369a1', '#082f49'] },
+  { id: 'forest', label: 'Forest', colors: ['#14532d', '#166534', '#052e16'] },
+  { id: 'gold', label: 'Gold VIP', colors: ['#422006', '#ca8a04', '#1a1000'] },
+];
 let Agora = null;
 try {
   Agora = require('react-native-agora');
@@ -146,7 +160,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   const [games, setGames] = useState(GAME_CENTER);
   const [balance, setBalance] = useState(0);
   const [showGifts, setShowGifts] = useState(false);
-  const [seats, setSeats] = useState(Array.from({ length: 9 }, (_, i) => ({ index: i, user: null })));
+  const [seats, setSeats] = useState(Array.from({ length: PARTY_SEAT_COUNT }, (_, i) => ({ index: i, user: null })));
   const [pk, setPk] = useState(null);
   const [pkChallenge, setPkChallenge] = useState(null);
   const [pkPick, setPkPick] = useState(false);
@@ -172,6 +186,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   const [hideMicStatus, setHideMicStatus] = useState(false);
   const [hideChrome, setHideChrome] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
   const [showGameCenter, setShowGameCenter] = useState(false);
@@ -198,6 +213,8 @@ export default function LiveRoomScreen({ navigation, route }) {
   const [luckyBoxSending, setLuckyBoxSending] = useState(false);
   const [luckyBoxError, setLuckyBoxError] = useState('');
   const [luckyBoxWin, setLuckyBoxWin] = useState(null);
+  const [partyBgColors, setPartyBgColors] = useState(PARTY_BACKGROUNDS[0].colors);
+  const partyMusicRef = useRef(null);
   const [luckyClaimResult, setLuckyClaimResult] = useState(null);
   const [showRoomInfo, setShowRoomInfo] = useState(false);
   const [roomInfoTab, setRoomInfoTab] = useState('member');
@@ -268,9 +285,25 @@ export default function LiveRoomScreen({ navigation, route }) {
   const hostUid = String(room.hostId || (isHost ? user?.id : '') || '');
   const platformAdmin = isPlatformAdmin(user);
 
-  useEffect(() => {
-    liveMini.prepareForRoom(channel);
-  }, [channel, liveMini]);
+  const partyMicCount = useMemo(() => {
+    const n = Number(stateSnap?.roomStyle?.micCount ?? stateSnap?.room_style?.mic_count);
+    if (Number.isFinite(n) && n >= 5) return Math.min(PARTY_SEAT_COUNT, Math.round(n));
+    return DEFAULT_PARTY_MIC_COUNT;
+  }, [stateSnap?.roomStyle?.micCount, stateSnap?.room_style?.mic_count]);
+
+  const countStageGuests = useCallback(() => {
+    const seen = new Set();
+    let n = 0;
+    seats.forEach((s) => {
+      const u = s?.user;
+      if (!u || u.isHost || u.role === 'host') return;
+      const uid = String(u.id || u.userId || '').trim();
+      if (!uid || seen.has(uid)) return;
+      seen.add(uid);
+      n += 1;
+    });
+    return n;
+  }, [seats]);
 
   const toast = (msg) => {
     if (Platform.OS === 'android') ToastAndroid.show(String(msg || ''), ToastAndroid.SHORT);
@@ -462,16 +495,7 @@ export default function LiveRoomScreen({ navigation, route }) {
       setGifts(api.extractList(g));
       setGames(uniqueGames([...GAME_CENTER, ...api.extractList(catalog)]));
       const d = api.unwrap(w) || {};
-      /* Match web SocialWallet.getGiftableCoins — never treat missing giftable as 0 when wallet has coins */
-      const coin = Number(d.coin_balance ?? d.coins ?? 0) || 0;
-      const sell = Number(d.sell_inventory_coins ?? d.inventory_coins ?? 0) || 0;
-      const gift =
-        d.giftable_coins != null
-          ? Number(d.giftable_coins) || 0
-          : sell > 0
-            ? sell + coin
-            : coin;
-      const bal = Math.max(gift, coin, sell + coin, 0);
+      const bal = walletGiftCoins(d);
       setBalance(bal);
       return bal;
     } catch (_e) {
@@ -766,6 +790,10 @@ export default function LiveRoomScreen({ navigation, route }) {
     let cancelled = false;
     (async () => {
       try {
+        await liveMini.prepareForRoom(channel);
+      } catch (_e) {}
+      if (cancelled) return;
+      try {
         /*
          * Live video + Live PK: block screenshots.
          * Party (no PK): allow screenshots.
@@ -887,6 +915,23 @@ export default function LiveRoomScreen({ navigation, route }) {
           if (navigation.canGoBack()) navigation.goBack();
           else navigation.navigate('Main');
         }));
+        unsubs.push(socket.on('live:member_joined', (d) => {
+          const uid = String(d?.userId || d?.user_id || d?.id || '');
+          if (!uid) return;
+          setStateSnap((prev) => {
+            const members = [...(prev?.onlineMembers || [])];
+            if (members.some((m) => String(m?.userId || m?.id || m?.user?.id || '') === uid)) {
+              return prev;
+            }
+            members.push({
+              userId: uid,
+              id: uid,
+              name: d?.name || d?.displayName || 'Guest',
+              profilePic: d?.profilePic || d?.profile_pic || d?.pic,
+            });
+            return { ...(prev || {}), onlineMembers: members };
+          });
+        }));
         unsubs.push(socket.on('live:member_left', (d) => {
           const leftId = String(d?.userId || d?.user_id || d?.id || '');
           if (!leftId) return;
@@ -908,14 +953,14 @@ export default function LiveRoomScreen({ navigation, route }) {
           hydrateChatFromState(s);
           if (Array.isArray(s?.seats)) {
             setSeats(
-              Array.from({ length: 9 }, (_, i) => {
+              Array.from({ length: PARTY_SEAT_COUNT }, (_, i) => {
                 const found = s.seats.find((x) => {
                   if (!x || x.isHost || x.role === 'host') return false;
                   const rawIdx = x.seatIndex ?? x.seat_index ?? x.index;
                   if (rawIdx == null || rawIdx === '') return false;
                   const n = Number(rawIdx);
                   if (!Number.isFinite(n)) return false;
-                  const idx = n >= 1 && n <= 9 ? n - 1 : n;
+                  const idx = n >= 1 && n <= PARTY_SEAT_COUNT ? n - 1 : n;
                   return idx === i;
                 });
                 const raw = found?.user && typeof found.user === 'object' ? found.user : found;
@@ -1049,6 +1094,23 @@ export default function LiveRoomScreen({ navigation, route }) {
             setInviteSeconds(10);
             setInviteOpen(true);
           }
+        }));
+        unsubs.push(socket.on('live:room_style', (p) => {
+          const bg = PARTY_BACKGROUNDS.find((b) => b.id === p?.backgroundId);
+          if (bg) setPartyBgColors(bg.colors);
+        }));
+        unsubs.push(socket.on('live:party_music', async (p) => {
+          const url = p?.url;
+          if (!url || !isParty) return;
+          try {
+            if (partyMusicRef.current) await partyMusicRef.current.unloadAsync();
+            const { Audio } = require('expo-av');
+            const { sound } = await Audio.Sound.createAsync(
+              { uri: mediaUrl(url) },
+              { shouldPlay: true, isLooping: true }
+            );
+            partyMusicRef.current = sound;
+          } catch (_e) {}
         }));
         unsubs.push(socket.on('live:seat_response', (p) => {
           const uid = String(p?.userId || '');
@@ -1185,7 +1247,7 @@ export default function LiveRoomScreen({ navigation, route }) {
 
     const btPoll = setInterval(() => {
       syncAgoraAudioRoute(engineRef.current, { speakerWanted: speakerOnRef.current }).catch(() => {});
-    }, 15000);
+    }, 45000);
 
     return () => {
       cancelled = true;
@@ -1305,10 +1367,7 @@ export default function LiveRoomScreen({ navigation, route }) {
   }, [api, channel, isParty, pk]);
 
   const shareRoom = () => {
-    Share.share({
-      title: 'AP Live',
-      message: `Watch ${room.hostName || 'this live'} on AP Live Service\naplive://live/${encodeURIComponent(channel || '')}`,
-    }).catch(() => {});
+    setShowShareSheet(true);
   };
 
   const resolveGiftTargets = (opts = {}) => {
@@ -1828,6 +1887,26 @@ export default function LiveRoomScreen({ navigation, route }) {
     seats,
     user,
   });
+  const shareInvite = useMemo(
+    () => buildRoomInviteMessage({
+      hostName: room.hostName || formatDisplayName(user) || 'Host',
+      channel,
+      isParty,
+      userId: user?.id,
+      hostPic: room.hostProfilePic,
+    }),
+    [channel, isParty, room.hostName, room.hostProfilePic, user]
+  );
+  const shareFallbackPeople = useMemo(
+    () => (people || [])
+      .map((p) => ({
+        id: String(p.id || p.userId || ''),
+        name: p.name || p.displayName || 'User',
+        pic: p.pic || p.profilePic,
+      }))
+      .filter((p) => p.id && p.id !== meId),
+    [meId, people]
+  );
   const announcement = stateSnap?.announcement || room.announcement || '🌸🧿 Radhey radhey 🧿🌸';
   const pinned = chat.find((m) => m.pinned)?.text || '';
 
@@ -1860,8 +1939,17 @@ export default function LiveRoomScreen({ navigation, route }) {
   };
 
   const requestSeat = (index) => {
+    const guestCount = countStageGuests();
+    if (!isParty && guestCount >= LIVE_MAX_GUESTS) {
+      toast(`Live stage is full — max ${LIVE_MAX_ON_STAGE} people (host + ${LIVE_MAX_GUESTS} guests)`);
+      return;
+    }
+    if (isParty && guestCount >= Math.max(1, partyMicCount - 1)) {
+      toast('All party seats are full');
+      return;
+    }
     const zero = Number(index);
-    const seatIndex = Number.isFinite(zero) && zero >= 0 && zero <= 8 ? zero + 1 : Math.max(1, zero || 1);
+    const seatIndex = Number.isFinite(zero) && zero >= 0 && zero <= PARTY_SEAT_COUNT - 1 ? zero + 1 : Math.max(1, zero || 1);
     const me = {
       id: user?.id,
       name: formatDisplayName(user) || user?.first_name || 'You',
@@ -1919,9 +2007,9 @@ export default function LiveRoomScreen({ navigation, route }) {
     }
     let idx = seatIndex != null ? Number(seatIndex) : (inviteSeatIndex != null ? Number(inviteSeatIndex) : null);
     const fromApply = Number(target?.seatIndex);
-    if (Number.isFinite(fromApply) && fromApply >= 1 && fromApply <= 9) {
+    if (Number.isFinite(fromApply) && fromApply >= 1 && fromApply <= PARTY_SEAT_COUNT) {
       idx = fromApply;
-    } else if (idx != null && idx >= 0 && idx <= 8) {
+    } else if (idx != null && idx >= 0 && idx <= PARTY_SEAT_COUNT - 1) {
       idx = idx + 1; /* grid 0-based → backend 1-based */
     }
     try {
@@ -2067,16 +2155,22 @@ export default function LiveRoomScreen({ navigation, route }) {
     if (s.user?.id || s.user?.userId) {
       const target = {
         id: s.user.id || s.user.userId,
+        userId: s.user.id || s.user.userId,
         name: s.user.name || s.user.displayName,
         pic: s.user.profilePic || s.user.profile_pic || s.user.pic,
         seatIndex: s.index,
         agoraUid: s.user.agoraUid || s.agoraUid,
+        giftScore: s.user.giftScore || s.user.gifts,
       };
       if (String(target.id) === meId) {
         openMember(target);
         return;
       }
-      focusAndGift(target);
+      if (canModerate) {
+        openMember(target);
+        return;
+      }
+      openProfile(target);
       return;
     }
     if (isHost || canModerate) {
@@ -2088,10 +2182,25 @@ export default function LiveRoomScreen({ navigation, route }) {
           {
             text: 'Sit here',
             onPress: () => {
-              inviteToSeat(
-                { id: user?.id, name: formatDisplayName(user) || user?.first_name || 'Host', pic: user?.profile_pic },
-                s.index
-              );
+              runLive(
+                'live:seat_response',
+                {
+                  userId: user?.id,
+                  name: formatDisplayName(user) || user?.first_name || 'Host',
+                  accepted: true,
+                  accept: true,
+                  seatIndex: s.index + 1,
+                },
+                'You joined the seat'
+              )
+                .then(() => promoteToPublisher({
+                  api,
+                  engine: engineRef.current,
+                  channel,
+                  muted: false,
+                  audioOnly: isParty,
+                }))
+                .catch(() => {});
             },
           },
           {
@@ -2155,6 +2264,25 @@ export default function LiveRoomScreen({ navigation, route }) {
           onPress: () => {
             demoteToAudience({ api, engine: engineRef.current, channel, audioOnly: isParty }).catch(() => {});
             runLive('live:demote_speaker', { userId: uid }, 'Left the seat').catch(() => {});
+            if (isParty) {
+              setMuted(true);
+              fireLive('live:mute', { userId: uid, muted: true }, 'Mic muted');
+            }
+          },
+        });
+      }
+      if (onStage && isParty) {
+        items.push({
+          id: 'mute-self',
+          label: muted ? 'Unmute mic' : 'Mute mic',
+          onPress: () => {
+            const next = !muted;
+            setMuted(next);
+            try {
+              engineRef.current?.muteLocalAudioStream?.(next);
+              engineRef.current?.enableLocalAudio?.(!next);
+            } catch (_e) {}
+            fireLive('live:mute', { userId: uid, muted: next }, next ? 'Mic muted' : 'Mic unmuted');
           },
         });
       }
@@ -2168,6 +2296,14 @@ export default function LiveRoomScreen({ navigation, route }) {
       });
     }
     if (!self) {
+      items.unshift({
+        id: 'profile',
+        label: 'View profile',
+        onPress: () => {
+          setMemberMenu(null);
+          setTimeout(() => openProfile(target), 40);
+        },
+      });
       items.push({
         id: 'gift',
         label: 'Send gift',
@@ -2338,6 +2474,11 @@ export default function LiveRoomScreen({ navigation, route }) {
   const viewedRoleKeys = hierarchyKeys({
     role: eng.role || panel.role,
     is_coin_seller: eng.is_coin_seller || panel.is_coin_seller,
+  }).filter((k) => {
+    if (k === 'vip' && (badges.vipLevel || panel.vipLevel)) return false;
+    if (k === 'svip' && (badges.svipLevel || panel.svipLevel)) return false;
+    if (k === 'admin' && viewedIsAdmin) return false;
+    return true;
   });
   const supporters = (panel.giftStats?.topSenders || []).map((s) => ({
     id: s.userId,
@@ -2374,7 +2515,7 @@ export default function LiveRoomScreen({ navigation, route }) {
       <StatusBar style="light" />
       <View style={pkActive ? styles.videoKeepAlive : StyleSheet.absoluteFill}>
         {isParty ? (
-          <LinearGradient colors={['#2E1065', '#1E1B4B', '#0F0A1A']} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={isParty ? partyBgColors : ['#2E1065', '#1E1B4B', '#0F0A1A']} style={StyleSheet.absoluteFill} />
         ) : (
         <LiveVideoLayer
           key="main-video"
@@ -2394,7 +2535,7 @@ export default function LiveRoomScreen({ navigation, route }) {
         <View style={[styles.pkStage, { top: insets.top + 72 }]}>
           <Pressable
             style={[styles.pkHalf, focusUser && String(focusUser.id) === String(hostUid) && styles.pkHalfOn]}
-            onPress={() => focusAndGift(hostInfo)}
+            onPress={() => openProfile(hostInfo)}
           >
             <LiveVideoLayer
               key="pk-left-video"
@@ -2450,8 +2591,8 @@ export default function LiveRoomScreen({ navigation, route }) {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         pointerEvents="box-none"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 8 : 72}
       >
         <View style={{ paddingTop: insets.top + 4 }}>
           {isParty ? (
@@ -2463,9 +2604,11 @@ export default function LiveRoomScreen({ navigation, route }) {
               roomFollowing={roomFollow.following}
               roomFollowers={roomFollow.followers}
               isHost={isHost}
-              onHost={() => setShowRoomInfo(true)}
+              onHost={() => openProfile(hostInfo)}
               onRoomFollow={toggleRoomFollow}
-              onRoomInfo={() => { setRoomInfoTab('member'); setShowRoomInfo(true); }}
+              onRoomInfo={() => { setAudienceTab('online'); setShowPeople(true); }}
+              onMinimize={doMinimize}
+              onShare={shareRoom}
               onClose={endOrLeave}
             />
           ) : (
@@ -2479,12 +2622,12 @@ export default function LiveRoomScreen({ navigation, route }) {
             people={people}
             following={following}
             isHost={isHost}
-            onHost={() => (pkActive ? focusAndGift(hostInfo) : openProfile(hostInfo))}
+            onHost={() => openProfile(hostInfo)}
             onFollow={toggleFollow}
             onPeople={() => { setAudienceTab('online'); setShowPeople(true); }}
             onShare={shareRoom}
             onClose={endOrLeave}
-            onExpand={() => setHideChrome((v) => !v)}
+            onMinimize={doMinimize}
           />
           <RankBadges rank="No.0" />
             </>
@@ -2492,14 +2635,7 @@ export default function LiveRoomScreen({ navigation, route }) {
         </View>
 
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingRight: 10 }} pointerEvents="box-none">
-          {isParty ? (
-            <View style={{ width: 8 }} />
-          ) : (
-          <WishWidgets
-            onWish={() => setLuckyBoard(true)}
-            banner={pk ? 'PK BATTLE' : 'Weekly Star'}
-          />
-          )}
+          <View style={{ width: 8 }} />
           <LuckyBoxFloat box={activeLuckyBox} onPress={() => { setLuckyClaimResult(null); setLuckyBoxClaim(true); }} />
         </View>
         <LuckyBoxWinBanner event={luckyBoxWin} />
@@ -2508,7 +2644,9 @@ export default function LiveRoomScreen({ navigation, route }) {
             rooms={feedRooms}
             onSwitch={(next) => {
               switchingRef.current = true;
-              navigation.replace(next.isParty ? 'PartyRoom' : 'LiveRoom', next);
+              liveMini.prepareForRoom(next.channel).finally(() => {
+                navigation.replace(next.isParty ? 'PartyRoom' : 'LiveRoom', next);
+              });
             }}
           />
         ) : null}
@@ -2518,8 +2656,15 @@ export default function LiveRoomScreen({ navigation, route }) {
             host={hostInfo}
             speakingKeys={speakingKeys}
             meId={meId}
-            onPress={(u) => focusAndGift(u)}
+            onPress={(u) => {
+              if (canModerate && String(u.id) !== meId && String(u.id) !== hostUid) {
+                openMember(u);
+              } else {
+                openProfile(u);
+              }
+            }}
             hideMic={hideMicStatus}
+            maxGuests={LIVE_MAX_GUESTS}
           />
         ) : null}
 
@@ -2532,7 +2677,14 @@ export default function LiveRoomScreen({ navigation, route }) {
             canRespond={Boolean(
               pkChallenge && (isHost || String(pkChallenge.targetUserId || pkChallenge.toUserId) === String(user?.id))
             )}
-            isHost={isHost}
+            canEndPk={isHost || canModerate}
+            onHostPress={() => openProfile(hostInfo)}
+            onRivalPress={() => focusAndGift({
+              id: pk?.targetUserId || pk?.rightUserId || pk?.guestUserId,
+              name: pk?.rightName || pk?.guestName || 'Rival',
+              pic: pk?.rightPic || pk?.guestProfilePic,
+              agoraUid: rivalRemoteUid,
+            })}
             onAccept={() => {
               socket.respondPk(pkChallenge.challengeId || pkChallenge.id, true).catch((e) => toast(e.message));
             }}
@@ -2552,6 +2704,7 @@ export default function LiveRoomScreen({ navigation, route }) {
               onSeat={onSeatPress}
               speakingKeys={speakingKeys}
               meId={meId}
+              maxSeats={partyMicCount}
               hostPresent={
                 isHost ||
                 !hasPresenceSnap ||
@@ -2645,13 +2798,19 @@ export default function LiveRoomScreen({ navigation, route }) {
         visible={showGameCenter}
         games={games}
         onClose={() => setShowGameCenter(false)}
-        diamonds={Math.min(balance, 999)}
-        gems={balance}
+        coins={balance}
         onPlus={() => { setShowGameCenter(false); navigation.navigate('Recharge'); }}
         onRefresh={loadWalletAndGifts}
         onPlay={(g) => {
           setShowGameCenter(false);
-          navigation.navigate('GamePlay', { slug: g.slug, name: g.name, emoji: g.emoji, url: g.url });
+          navigation.navigate('GamePlay', {
+            slug: g.slug,
+            name: g.name,
+            emoji: g.emoji,
+            url: g.url,
+            channel,
+            balance,
+          });
         }}
       />
       <AudienceSheet
@@ -2847,8 +3006,50 @@ export default function LiveRoomScreen({ navigation, route }) {
         onRankings={() => navigation.navigate('Rankings')}
         onStore={() => navigation.navigate('Store')}
         onFanClub={() => navigation.navigate('Family', { userId: room.hostId || hostUid, name: room.hostName })}
-        onMusic={() => toast('Ambient sound uses your device speaker settings')}
-        onBackground={() => toast('Room theme uses the live stage background')}
+        onMusic={async () => {
+          if (!isParty) return toast('Music is available in party rooms');
+          try {
+            const asset = await pickMedia('all');
+            if (!asset?.uri) return;
+            const part = filePart(asset, 'music.mp3');
+            if (!part) return toast('Could not read audio file');
+            const form = new FormData();
+            form.append('music', part);
+            const res = await api.request('/live/party-music', { method: 'POST', body: form, timeoutMs: 120000 });
+            const url = api.unwrap(res)?.url || res?.url;
+            if (!url) return toast('Upload failed');
+            try {
+              if (partyMusicRef.current) await partyMusicRef.current.unloadAsync();
+              const { Audio } = require('expo-av');
+              const { sound } = await Audio.Sound.createAsync({ uri: mediaUrl(url) }, { shouldPlay: true, isLooping: true });
+              partyMusicRef.current = sound;
+              runLive('live:party_music', { url }, 'Party music playing').catch(() => {});
+              toast('Party music playing');
+            } catch (_e) {
+              toast('Music uploaded');
+            }
+          } catch (e) {
+            toast(e.message || 'Music upload failed');
+          }
+        }}
+        onBackground={() => {
+          if (!isParty) return toast('Backgrounds are for party rooms');
+          Alert.alert(
+            'Party background',
+            'Choose a room theme',
+            [
+              ...PARTY_BACKGROUNDS.map((bg) => ({
+                text: bg.label,
+                onPress: () => {
+                  setPartyBgColors(bg.colors);
+                  runLive('live:room_style', { backgroundId: bg.id, micCount: partyMicCount }, `${bg.label} background applied`).catch(() => {});
+                  toast(`${bg.label} background applied`);
+                },
+              })),
+              { text: 'Cancel', style: 'cancel' },
+            ]
+          );
+        }}
         onSettings={() => navigation.navigate('StreamerCenter')}
         onReport={() => {
           if (!hostUid) return;
@@ -2857,7 +3058,7 @@ export default function LiveRoomScreen({ navigation, route }) {
             .catch((e) => Alert.alert('Report failed', e.message));
         }}
         onLiveData={() => {
-          Alert.alert('Live data', `Viewers ${viewers}\nSeats ${seats.filter((s) => s.user).length}/9\nChat ${chatLocked ? 'muted' : 'open'}`);
+          Alert.alert('Live data', `Viewers ${viewers}\nSeats ${seats.filter((s) => s.user).length}/${PARTY_SEAT_COUNT}\nChat ${chatLocked ? 'muted' : 'open'}`);
         }}
         onMessages={() => navigation.navigate('Main', { screen: 'Chat' })}
         onVip={() => navigation.navigate('Vip')}
@@ -3096,6 +3297,12 @@ export default function LiveRoomScreen({ navigation, route }) {
             toast(e.message || 'Could not start PK');
           }
         }}
+      />
+      <InAppShareSheet
+        visible={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        invite={shareInvite}
+        fallbackPeople={shareFallbackPeople}
       />
     </View>
   );

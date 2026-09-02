@@ -7,6 +7,7 @@ import { colors } from '../../config/theme';
 import { ErrorBanner } from '../../components/ui';
 import { CreamCard, CreamHeader, CreamMenuRow, OrangeCta, creamRoot } from '../../components/creamChrome';
 import { indianGroup } from '../../lib/format.js';
+import { normalizeWalletBalance, walletCoins, walletGiftCoins, walletPoints, walletWalletCoins } from '../../lib/walletFields';
 
 export default function WalletScreen({ navigation }) {
   const { api } = useAuth();
@@ -17,8 +18,8 @@ export default function WalletScreen({ navigation }) {
   const load = useCallback(async () => {
     setError('');
     try {
-      const res = await api.get('/wallet/balance');
-      setData(api.unwrap(res));
+      const res = await api.get('/wallet/balance', null, { skipCache: true });
+      setData(normalizeWalletBalance(api.unwrap(res)));
     } catch (e) {
       setError(e.message);
     }
@@ -30,9 +31,11 @@ export default function WalletScreen({ navigation }) {
     }, [load])
   );
 
-  const coins = Number(data.coin_balance || data.coins || 0);
-  const points = Number(data.points || data.point_balance || 0);
-  const gifts = Number(data.giftable_coins || data.gift_coins || 0);
+  const coins = walletCoins(data);
+  const walletOnly = walletWalletCoins(data);
+  const points = walletPoints(data);
+  const gifts = walletGiftCoins(data);
+  const seller = data.is_coin_seller;
 
   return (
     <View style={creamRoot}>
@@ -43,15 +46,18 @@ export default function WalletScreen({ navigation }) {
       >
         <ErrorBanner message={error} onRetry={load} />
         <CreamCard>
-          <Text style={styles.k}>Coins (same as profile Coins)</Text>
+          <Text style={styles.k}>{seller ? 'Coins (sellable pool)' : 'Coins (wallet)'}</Text>
           <View style={styles.balRow}>
             <Text style={styles.n}>{indianGroup(coins)}</Text>
             <Ionicons name="logo-bitcoin" size={22} color="#C9A227" />
           </View>
-          <Text style={styles.sub}>Points {indianGroup(points)}  ·  Gift coins {indianGroup(gifts)}</Text>
+          <Text style={styles.sub}>
+            Points {indianGroup(points)}
+            {seller ? `  ·  Wallet ${indianGroup(walletOnly)}  ·  Gift stock ${indianGroup(gifts)}` : `  ·  Gift coins ${indianGroup(gifts)}`}
+          </Text>
         </CreamCard>
-        <OrangeCta title="Recharge coins" onPress={() => navigation.navigate('Recharge')} style={{ marginHorizontal: 14, marginTop: 12 }} />
-        <CreamMenuRow icon="wallet-outline" title="Withdraw / Exchange" onPress={() => navigation.navigate('Withdraw')} />
+        <OrangeCta title="Top up / Recharge" onPress={() => navigation.navigate('Recharge')} style={{ marginHorizontal: 14, marginTop: 12 }} />
+        <CreamMenuRow icon="swap-horizontal-outline" title="Withdraw / Exchange points" onPress={() => navigation.navigate('Withdraw')} />
         <CreamMenuRow icon="time-outline" title="Transaction history" onPress={() => navigation.navigate('WalletHistory')} />
         <CreamMenuRow icon="storefront-outline" title="Store" onPress={() => navigation.navigate('Store')} />
       </ScrollView>

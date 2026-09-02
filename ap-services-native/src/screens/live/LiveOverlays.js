@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -15,6 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '../../components/ui';
 import { GAME_URLS, normalizeGameUrl } from '../../lib/gameUrls';
@@ -26,9 +27,15 @@ import GiftThumb from '../../components/GiftThumb';
 import { pickQuickGifts } from '../../components/GiftSheet';
 import { mediaUrl } from '../../config/api';
 import { ROLE_BADGE } from '../../lib/roles';
+import { STICKER_TABS } from '../../config/stickers';
 
 export const LIVE_PINK = '#D116D1';
 export const SHEET = '#1B1D26';
+/** Host + guest seats on live video stage (webview parity). */
+export const LIVE_MAX_GUESTS = 5;
+export const LIVE_MAX_ON_STAGE = LIVE_MAX_GUESTS + 1;
+export const DEFAULT_PARTY_MIC_COUNT = 6;
+export const PARTY_MAX_SEATS = 15;
 
 export const SVIP_EMOJIS = [
   { id: 'angry', label: 'Angry', glyph: '😠', tint: '#ef4444' },
@@ -126,7 +133,7 @@ export function LiveHeader({
   onPeople,
   onShare,
   onClose,
-  onExpand,
+  onMinimize,
 }) {
   return (
     <View style={styles.header}>
@@ -150,8 +157,8 @@ export function LiveHeader({
           <Equalizer size={11} />
           <Text style={styles.viewerN}>{viewers || 0} joined</Text>
         </Pressable>
-        <Pressable onPress={onExpand} style={styles.round} accessibilityLabel="Expand">
-          <Ionicons name="expand-outline" size={16} color="#fff" />
+        <Pressable onPress={onMinimize} style={styles.round} accessibilityLabel="Minimize">
+          <Ionicons name="contract-outline" size={16} color="#fff" />
         </Pressable>
         <Pressable onPress={onShare} style={styles.round} accessibilityLabel="Share">
           <Ionicons name="share-social-outline" size={17} color="#fff" />
@@ -176,6 +183,8 @@ export function PartyHeader({
   onHost,
   onRoomFollow,
   onRoomInfo,
+  onMinimize,
+  onShare,
   onClose,
 }) {
   return (
@@ -204,27 +213,20 @@ export function PartyHeader({
             <Ionicons name="people" size={12} color="#fff" />
             <Text style={styles.partyViewerN}>{viewers || 0}</Text>
           </Pressable>
+          {onShare ? (
+            <Pressable onPress={onShare} style={styles.partyClose} accessibilityLabel="Share">
+              <Ionicons name="share-social-outline" size={17} color="#fff" />
+            </Pressable>
+          ) : null}
+          {onMinimize ? (
+            <Pressable onPress={onMinimize} style={styles.partyClose} accessibilityLabel="Minimize">
+              <Ionicons name="contract-outline" size={17} color="#fff" />
+            </Pressable>
+          ) : null}
           <Pressable onPress={onClose} style={styles.partyClose} accessibilityLabel="Leave">
             <Ionicons name="close" size={18} color="#fff" />
           </Pressable>
         </View>
-      </View>
-      <View style={styles.partyMetaRow}>
-        <View style={styles.partyMetaPill}>
-          <Ionicons name="flame" size={12} color="#FBBF24" />
-          <Text style={styles.partyMetaT}>Pop 100+</Text>
-        </View>
-        <View style={[styles.partyMetaPill, { flex: 1 }]}>
-          <Ionicons name="musical-notes" size={12} color="#60A5FA" />
-          <View style={styles.partyProgTrack}>
-            <View style={[styles.partyProgFill, { width: '46%' }]} />
-          </View>
-          <Text style={styles.partyMetaT}>45%</Text>
-        </View>
-        <Pressable onPress={onRoomInfo} style={styles.partyMetaPill}>
-          <Ionicons name="document-text-outline" size={12} color="#E9D5FF" />
-          <Text style={styles.partyMetaT}>Rule</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -279,7 +281,7 @@ export function WishWidgets({ onWish, banner = 'ROOM PK LEAGUE' }) {
   );
 }
 
-export function GifterRail({ seats, host, onPress, speakingKeys, meId, hideMic }) {
+export function GifterRail({ seats, host, onPress, speakingKeys, meId, hideMic, maxGuests = LIVE_MAX_GUESTS }) {
   const hostId = String(host?.id || '');
   const list = [];
   const seen = new Set();
@@ -292,33 +294,91 @@ export function GifterRail({ seats, host, onPress, speakingKeys, meId, hideMic }
     seen.add(uid);
     list.push({
       id: uid,
+      userId: uid,
       name: u.name || u.displayName || 'Guest',
       pic: u.profilePic || u.profile_pic || u.pic,
       muted: Boolean(u.muted || s.muted),
       agoraUid: u.agoraUid || s.agoraUid,
       speaking: isSeatSpeaking(u, speakingKeys, meId),
+      giftScore: Number(u.giftScore || u.gifts || s.giftScore || 0),
+      seatIndex: s.index,
     });
   });
-  if (!list.length) return null;
+  const visible = list.slice(0, maxGuests);
+  if (!visible.length) return null;
   return (
     <View style={styles.gifterRail} pointerEvents="box-none">
-      {list.map((u) => (
-        <Pressable key={u.id} onPress={() => onPress?.(u)} style={[styles.gifter, u.speaking && styles.gifterTalk, u.muted && styles.gifterMuted]}>
-          <Avatar uri={u.pic} name={u.name} size={40} />
-          {u.speaking && !u.muted ? (
-            <View style={styles.seatWave}><Equalizer size={10} color="#fbbf24" /></View>
+      {visible.map((u) => (
+        <Pressable key={u.id} onPress={() => onPress?.(u)} style={[styles.gifterWrap, u.speaking && styles.gifterTalk, u.muted && styles.gifterMuted]}>
+          {u.giftScore > 0 ? (
+            <View style={styles.gifterGiftBadge}>
+              <Text style={styles.gifterGiftT}>🎁 {u.giftScore > 99 ? '99+' : u.giftScore}</Text>
+            </View>
           ) : null}
-          {u.muted && !hideMic ? (
-            <View style={styles.seatMuteBadge}><Ionicons name="mic-off" size={12} color="#fff" /></View>
-          ) : null}
+          <View style={styles.gifter}>
+            <Avatar uri={u.pic} name={u.name} size={48} />
+            {u.speaking && !u.muted ? (
+              <View style={styles.seatWave}><Equalizer size={10} color="#fbbf24" /></View>
+            ) : null}
+            {u.muted && !hideMic ? (
+              <View style={styles.seatMuteBadge}><Ionicons name="mic-off" size={12} color="#fff" /></View>
+            ) : null}
+          </View>
+          <Text style={styles.gifterName} numberOfLines={1}>{String(u.name || 'Guest').slice(0, 8)}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
-export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId, hostPresent = true }) {
+/** Tiered party seat rows — matches webview getPartySeatLayout(). */
+export function getPartySeatLayout(maxSeats) {
+  const n = Math.max(5, Math.min(PARTY_MAX_SEATS, Number(maxSeats) || DEFAULT_PARTY_MIC_COUNT));
+  const all = Array.from({ length: n }, (_, i) => i);
+  if (n <= 5) {
+    return [
+      { tier: 'lg', indices: [0] },
+      { tier: 'md', indices: all.slice(1) },
+    ];
+  }
+  if (n <= 10) {
+    const rows = [
+      { tier: 'lg', indices: [0, 1] },
+      { tier: 'md', indices: [2, 3, 4, 5] },
+    ];
+    if (n > 6) rows.push({ tier: 'md', indices: all.slice(6, 10) });
+    return rows;
+  }
+  const perRow = n <= 15 ? 3 : 5;
+  const rows = [];
+  for (let r = 0; r < Math.ceil(n / perRow); r += 1) {
+    const start = r * perRow;
+    rows.push({
+      tier: r === 0 ? 'lg' : r < 2 ? 'md' : 'sm',
+      indices: all.slice(start, Math.min(start + perRow, n)),
+    });
+  }
+  return rows;
+}
+
+function seatCellWidth(count, tier) {
+  if (tier === 'lg') return count <= 1 ? '100%' : '48%';
+  if (count <= 3) return `${Math.floor(96 / count)}%`;
+  if (count === 4) return '23%';
+  return '19%';
+}
+
+export function PartySeatGrid({
+  seats,
+  host,
+  onSeat,
+  speakingKeys,
+  meId,
+  hostPresent = true,
+  maxSeats = DEFAULT_PARTY_MIC_COUNT,
+}) {
   const hostId = String(host?.id || '');
+  const seatCount = Math.max(5, Math.min(PARTY_MAX_SEATS, Number(maxSeats) || DEFAULT_PARTY_MIC_COUNT));
   const incoming = Array.isArray(seats) ? seats : [];
   const byIndex = new Map();
   incoming.forEach((s) => {
@@ -328,7 +388,7 @@ export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId, hostPre
     if (u && (u.isHost || u.role === 'host')) return;
     byIndex.set(raw, s);
   });
-  const list = Array.from({ length: 9 }, (_, i) => {
+  const list = Array.from({ length: seatCount }, (_, i) => {
     if (i === 0 && hostId && hostPresent) {
       const hostUser = {
         id: hostId,
@@ -346,21 +406,29 @@ export function PartySeatGrid({ seats, host, onSeat, speakingKeys, meId, hostPre
     const s = byIndex.get(i) || { index: i, user: null };
     return { ...s, index: i };
   });
+  const layout = getPartySeatLayout(seatCount);
   return (
     <View style={styles.seatWrap}>
-      <View style={styles.seatGrid3}>
-        {list.map((s) => (
-          <SeatBubble
-            key={`seat-${s.index}`}
-            seat={s}
-            host={host}
-            onPress={() => onSeat?.(s)}
-            speakingKeys={speakingKeys}
-            meId={meId}
-            premium
-          />
-        ))}
-      </View>
+      {layout.map((row, ri) => (
+        <View key={`seat-row-${ri}`} style={styles.seatRow}>
+          {row.indices.map((idx) => {
+            const s = list[idx];
+            if (!s) return null;
+            return (
+              <SeatBubble
+                key={`seat-${s.index}`}
+                seat={s}
+                host={host}
+                onPress={() => onSeat?.(s)}
+                speakingKeys={speakingKeys}
+                meId={meId}
+                tier={row.tier}
+                cellWidth={seatCellWidth(row.indices.length, row.tier)}
+              />
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -406,7 +474,7 @@ function SeatPulse({ active, color, children, empty }) {
   );
 }
 
-function SeatBubble({ seat, host, onPress, speakingKeys, meId, premium }) {
+function SeatBubble({ seat, host, onPress, speakingKeys, meId, tier = 'md', cellWidth }) {
   const user = seatUser(seat);
   const isHostSeat = Boolean(
     user && (String(user.id || user.userId) === String(host?.id) || user?.isHost || user?.role === 'host')
@@ -418,9 +486,10 @@ function SeatBubble({ seat, host, onPress, speakingKeys, meId, premium }) {
   const speaking = isSeatSpeaking(user, speakingKeys, meId);
   const giftN = Number(user?.giftScore || user?.gifts || user?.score || seat?.score || 0);
   const name = String(user?.name || user?.displayName || '').trim();
+  const avatarSize = tier === 'lg' ? 64 : tier === 'sm' ? 44 : 52;
   return (
-    <Pressable onPress={onPress} style={[styles.seatCell, premium && styles.seatCellPremium]}>
-      <Text style={[styles.seatNum, premium && styles.seatNumPremium]}>{seatNum}</Text>
+    <Pressable onPress={onPress} style={[styles.seatCell, { width: cellWidth || '32%' }, tier === 'lg' && styles.seatCellLg, tier === 'sm' && styles.seatCellSm]}>
+      <Text style={[styles.seatNum, tier === 'lg' && styles.seatNumLg]}>{seatNum}</Text>
       {isHostSeat ? (
         <View style={styles.seatHostCrown}>
           <Ionicons name="ribbon" size={14} color="#F5D76E" />
@@ -436,7 +505,7 @@ function SeatBubble({ seat, host, onPress, speakingKeys, meId, premium }) {
         {user ? (
           <View style={styles.seatOcc}>
             <View style={[styles.seatAvRing, speaking && !muted && styles.seatAvRingTalk]}>
-              <Avatar uri={mediaUrl(pic)} name={name || 'Guest'} size={premium ? 52 : 48} />
+              <Avatar uri={mediaUrl(pic)} name={name || 'Guest'} size={avatarSize} />
             </View>
             {speaking && !muted ? (
               <View style={styles.seatWave}><Equalizer size={11} color="#fbbf24" /></View>
@@ -448,18 +517,18 @@ function SeatBubble({ seat, host, onPress, speakingKeys, meId, premium }) {
             )}
           </View>
         ) : vipEmpty ? (
-          <View style={[styles.seatVipEmpty, premium && styles.seatVipEmptyPremium]}>
-            <Ionicons name="trophy" size={28} color="rgba(251,191,36,0.85)" />
+          <View style={[styles.seatVipEmpty, tier === 'lg' && styles.seatVipEmptyLg]}>
+            <Ionicons name="trophy" size={tier === 'lg' ? 32 : 28} color="rgba(251,191,36,0.85)" />
           </View>
         ) : (
-          <View style={[styles.seatChairEmpty, premium && styles.seatChairEmptyPremium]}>
-            <Ionicons name="person" size={22} color="rgba(196,181,253,0.55)" />
+          <View style={[styles.seatChairEmpty, tier === 'lg' && styles.seatChairEmptyLg]}>
+            <Ionicons name="person" size={tier === 'lg' ? 26 : 22} color="rgba(196,181,253,0.55)" />
             <View style={styles.seatPlus}><Text style={styles.seatPlusT}>+</Text></View>
           </View>
         )}
       </SeatPulse>
       {user ? (
-        <Text style={[styles.seatName, premium && styles.seatNamePremium]} numberOfLines={1}>{name || 'Guest'}</Text>
+        <Text style={[styles.seatName, tier === 'lg' && styles.seatNameLg]} numberOfLines={1}>{name || 'Guest'}</Text>
       ) : (
         <View style={{ height: 16 }} />
       )}
@@ -538,10 +607,17 @@ export function LiveChatFeed({
               </Text>
             ) : (
               <View style={{ flex: 1 }}>
+                {String(m.text || '').startsWith('__STK__:') ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6 }}>
+                    <Text style={styles.chatUser}>{sanitizePublicText(m.user, 32) || 'User'}: </Text>
+                    <ExpoImage source={{ uri: String(m.text).slice(8) }} style={{ width: 72, height: 72 }} contentFit="contain" />
+                  </View>
+                ) : (
                 <Text style={styles.chatMsg}>
                   <Text style={styles.chatUser}>{sanitizePublicText(m.user, 32) || 'User'}: </Text>
                   {m.text ? sanitizePublicText(m.text, 280) : ''}
                 </Text>
+                )}
                 {m.imageUrl ? (
                   <Pressable onPress={() => onImage?.(m.imageUrl)} style={styles.chatImgWrap}>
                     <Image source={{ uri: mediaUrl(m.imageUrl) }} style={styles.chatImg} resizeMode="cover" />
@@ -652,32 +728,55 @@ export function LiveBottomBar({
 }
 
 export function EmojiSheet({ visible, onClose, onPick }) {
-  const all = [...SVIP_EMOJIS.map((e) => e.glyph), ...BASIC_EMOJIS, '😘', '🤗', '🙌', '💯', '⭐', '🌹', '🎁', '👑'];
-  const unique = [...new Set(all)];
+  const [tab, setTab] = useState('emoji');
+  const pack = STICKER_TABS.find((t) => t.id === tab) || STICKER_TABS[0];
   return (
-    <AnimatedSheet visible={visible} onClose={onClose} height={0.42}>
+    <AnimatedSheet visible={visible} onClose={onClose} height={0.48}>
       <View style={{ backgroundColor: '#1B1D26', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, flex: 1 }}>
-        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16, marginBottom: 12 }}>Emojis</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {unique.map((glyph) => (
-            <Pressable key={glyph} onPress={() => { onPick?.(glyph); onClose?.(); }} style={{ width: '16.6%', paddingVertical: 10, alignItems: 'center' }}>
-              <Text style={{ fontSize: 28 }}>{glyph}</Text>
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16, marginBottom: 8 }}>Emojis & stickers</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginBottom: 10 }}>
+          {STICKER_TABS.map((t) => (
+            <Pressable key={t.id} onPress={() => setTab(t.id)} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: tab === t.id ? '#7C3AED' : 'rgba(255,255,255,0.08)' }}>
+              <Text style={{ fontSize: 18 }}>{t.glyph}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
+        <ScrollView>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {pack?.kind === 'stickers'
+              ? (pack.pack || []).map((s) => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => { onPick?.(`__STK__:${s.uri}`); onClose?.(); }}
+                  style={{ width: '20%', paddingVertical: 8, alignItems: 'center' }}
+                >
+                  <ExpoImage source={{ uri: s.uri }} style={{ width: 64, height: 64 }} contentFit="contain" />
+                </Pressable>
+              ))
+              : [...SVIP_EMOJIS.map((e) => e.glyph), ...BASIC_EMOJIS, '😘', '🤗', '🙌', '💯', '⭐', '🌹', '🎁', '👑'].filter((v, i, a) => a.indexOf(v) === i).map((glyph) => (
+                <Pressable key={glyph} onPress={() => { onPick?.(glyph); onClose?.(); }} style={{ width: '16.6%', paddingVertical: 10, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 28 }}>{glyph}</Text>
+                </Pressable>
+              ))}
+          </View>
+        </ScrollView>
       </View>
     </AnimatedSheet>
   );
 }
 
-export function GameCenterSheet({ visible, onClose, onPlus, onRefresh, onPlay, games }) {
+export function GameCenterSheet({ visible, onClose, onPlus, onRefresh, onPlay, games, coins = 0 }) {
   const list = uniqueGames(games?.length ? games : GAME_CENTER);
   return (
     <AnimatedSheet visible={visible} onClose={onClose} height={0.72}>
       <View style={{ backgroundColor: '#12081c', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, flex: 1 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>Game center</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 12 }}>💎</Text>
+              <Text style={{ color: '#FDE68A', fontWeight: '800', fontSize: 12 }}>{Number(coins || 0).toLocaleString()}</Text>
+            </View>
             <Pressable onPress={onPlus}><Text style={{ color: '#FDE68A', fontWeight: '800' }}>+ Coins</Text></Pressable>
             <Pressable onPress={onRefresh}><Text style={{ color: '#9CA3AF', fontWeight: '700' }}>Refresh</Text></Pressable>
             <Pressable onPress={onClose}><Text style={{ color: '#9CA3AF' }}>Close</Text></Pressable>
@@ -1242,6 +1341,20 @@ export function ToolsMenuSheet({
     },
   ].filter(Boolean);
 
+  const PARTY_HIDE = new Set(['record', 'intro', 'data', 'pk', 'flip', 'beauty', 'mirror', 'noise', 'wish', 'vip', 'luckybox', 'collection']);
+  const filteredSections = sections
+    .map((sec) => {
+      let items = sec.items.filter((it) => it.id !== 'vip' && it.id !== 'wish');
+      if (isParty) {
+        items = items.filter((it) => !PARTY_HIDE.has(it.id));
+        if (host && sec.title === 'Host Tools' && onBackground) {
+          items = [...items, { id: 'bg', label: 'Background', icon: 'color-palette-outline', onPress: onBackground }];
+        }
+      }
+      return { ...sec, items };
+    })
+    .filter((sec) => sec.items.length > 0);
+
   if (!visible) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -1254,7 +1367,7 @@ export function ToolsMenuSheet({
             </Pressable>
           </View>
           <ScrollView style={{ maxHeight: 560 }} showsVerticalScrollIndicator={false}>
-            {sections.map((sec) => (
+            {filteredSections.map((sec) => (
               <View key={sec.title}>
                 <Text style={styles.toolsH}>{sec.title}</Text>
                 <View style={styles.toolsGrid}>
@@ -1540,30 +1653,47 @@ const styles = StyleSheet.create({
   wishT: { color: '#fff', fontWeight: '700', fontSize: 11 },
   eventBan: { backgroundColor: '#6d28d9', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, maxWidth: 120 },
   eventT: { color: '#fde68a', fontWeight: '800', fontSize: 10 },
-  gifterRail: { position: 'absolute', right: 12, bottom: 228, alignItems: 'center', gap: 10 },
+  gifterRail: { position: 'absolute', right: 12, bottom: 228, alignItems: 'center', gap: 10, zIndex: 5, maxWidth: 72 },
+  gifterWrap: { alignItems: 'center', maxWidth: 68 },
+  gifterGiftBadge: {
+    marginBottom: 2,
+    backgroundColor: 'rgba(236,72,153,0.9)',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  gifterGiftT: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  gifterName: { color: '#fff', fontSize: 10, fontWeight: '700', marginTop: 4, textAlign: 'center', maxWidth: 64 },
   gifter: { borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 28, padding: 2 },
   gifterTalk: { borderColor: '#fbbf24', borderWidth: 3, shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 10, elevation: 8 },
   gifterMuted: { borderColor: '#F87171', opacity: 0.78 },
   gifterGold: { borderColor: '#fbbf24', borderWidth: 3, borderRadius: 32 },
-  seatWrap: { flex: 1, paddingTop: 0, paddingHorizontal: 10, paddingBottom: 108, justifyContent: 'flex-start' },
+  seatWrap: { flex: 1, paddingTop: 4, paddingHorizontal: 12, paddingBottom: 108, justifyContent: 'flex-start', gap: 8 },
+  seatRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 4 },
   seatGrid3: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  seatGrid5: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   seatCell: {
-    width: '32%',
-    aspectRatio: 0.92,
-    marginBottom: '2%',
-    borderRadius: 14,
-    backgroundColor: 'rgba(40, 16, 72, 0.55)',
+    aspectRatio: 0.88,
+    marginBottom: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(12, 10, 28, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 10,
     paddingBottom: 6,
     overflow: 'hidden',
-  },
-  seatCellPremium: {
-    backgroundColor: 'rgba(12, 10, 28, 0.42)',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.18)',
-    borderRadius: 16,
+    borderColor: 'rgba(167,139,250,0.2)',
+  },
+  seatCellLg: {
+    aspectRatio: 0.95,
+    backgroundColor: 'rgba(40, 16, 72, 0.62)',
+    borderColor: 'rgba(251,191,36,0.25)',
+    minHeight: 118,
+  },
+  seatCellSm: {
+    aspectRatio: 0.85,
+    minHeight: 88,
   },
   seatNum: {
     position: 'absolute',
@@ -1574,7 +1704,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     zIndex: 2,
   },
-  seatNumPremium: { color: 'rgba(226,232,240,0.7)', fontSize: 11 },
+  seatNumLg: { fontSize: 13 },
+  seatNameLg: { fontSize: 13, fontWeight: '800' },
+  seatVipEmptyLg: { width: 72, height: 72, borderRadius: 20 },
+  seatChairEmptyLg: { width: 72, height: 72, borderRadius: 20 },
   seatGiftBadge: {
     position: 'absolute',
     right: 6,
